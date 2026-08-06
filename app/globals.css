@@ -1,0 +1,20 @@
+@import "@fontsource/manrope/400.css";
+@import "@fontsource/manrope/500.css";
+@import "@fontsource/manrope/600.css";
+@import "@fontsource/manrope/700.css";
+@import "@fontsource/manrope/800.css";
+@import "tailwindcss";
+
+:root { --navy: #052b70; --ink: #06265d; --blue: #0866ec; --pale: #f3f8ff; }
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; color: var(--ink); background: var(--pale); font-family: "Manrope", "Inter", Arial, Helvetica, sans-serif; }
+button, input, select { font: inherit; }
+.campus-hero { background: radial-gradient(circle at 72% 10%, #bde6ff 0, transparent 25%), linear-gradient(108deg, #042460 0%, #0752ae 47%, #89c7ff 100%); }
+.campus-building { background: repeating-linear-gradient(90deg, #0b5daf 0 11%, #e7f5ff 12% 19%, #0b5daf 20% 29%); border: 8px solid #eaf6ff; border-bottom-width: 26px; box-shadow: 0 24px 40px rgba(0, 20, 66, .45); }
+.campus-building::before { content: ""; position: absolute; width: 28%; height: 52px; left: 36%; top: -39px; background: #eaf6ff; border: 6px solid #0d4c99; }
+.campus-building::after { content: "NEPAL POLICE SCHOOL"; position: absolute; width: 30%; left: 35%; top: 10px; color: white; text-align: center; font-size: 9px; font-weight: 800; }
+.photo-tile { background: linear-gradient(135deg, #0c3568, #4896df 47%, #e8cf9e 48%, #0851aa); }
+.photo-tile:nth-child(2n) { background: linear-gradient(135deg, #8db7ea, #173f73 48%, #e2b45f 49%, #042a61); }
+.site-grain { background-image: radial-gradient(rgba(21,101,192,.10) .7px, transparent .7px); background-size: 16px 16px; }
+#quick-info { padding-top: 3rem; }

@@ -1,0 +1,12 @@
+import Link from "next/link";
+import { LayoutDashboard, Users, Newspaper, CalendarDays, Images, Settings, LogOut, BadgeCheck } from "lucide-react";
+import type { ReactNode } from "react";
+import type { AdminIdentity } from "@/lib/auth";
+
+const links = [
+  ["Overview", "/admin", LayoutDashboard], ["Leadership", "/admin/leadership", BadgeCheck], ["Teachers", "/admin/teachers", Users], ["News & notices", "/admin/news", Newspaper], ["Events", "/admin/events", CalendarDays], ["Gallery", "/admin/gallery", Images], ["Site settings", "/admin/settings", Settings],
+] as const;
+
+export function AdminShell({ user, children }: { user: AdminIdentity; children: ReactNode }) {
+  return <div className="min-h-screen bg-[#f5f9ff] text-[#06275c]"><aside className="hidden fixed inset-y-0 left-0 w-64 border-r border-sky-100 bg-[#061f4e] p-5 text-white lg:block"><Link href="/" className="flex items-center gap-3 border-b border-white/15 pb-5"><span className="grid h-10 w-10 place-items-center rounded-xl bg-sky-500 font-extrabold">NPS</span><span><b className="block text-sm">Digital Campus</b><span className="text-[11px] text-blue-200">Administration</span></span></Link><nav className="mt-7 space-y-1">{links.map(([label, href, Icon]) => <Link key={href} href={href} className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-bold text-blue-100 transition hover:bg-white/10 hover:text-white"><Icon size={18}/>{label}</Link>)}</nav><form action="/logout" method="post" className="absolute bottom-5 left-5 right-5"><button className="flex w-full items-center gap-3 rounded-xl border border-white/15 px-3 py-3 text-sm font-bold text-blue-100 hover:bg-white/10"><LogOut size={18}/> Sign out</button></form></aside><div className="lg:pl-64"><header className="sticky top-0 z-20 flex min-h-18 items-center justify-between border-b border-sky-100 bg-white/90 px-5 backdrop-blur sm:px-8"><div><p className="text-[10px] font-bold uppercase tracking-[.18em] text-sky-700">NPS Digital Campus</p><p className="mt-1 text-sm font-bold">Content management</p></div><div className="flex items-center gap-3"><span className="hidden text-right text-xs text-slate-500 sm:block"><b className="block text-[#06275c]">{user.email}</b>{user.role}</span><span className="grid h-9 w-9 place-items-center rounded-full bg-sky-100 text-xs font-extrabold text-sky-800">{user.email.slice(0, 1).toUpperCase()}</span></div></header><main className="px-5 py-8 sm:px-8">{children}</main></div></div>;
+}
