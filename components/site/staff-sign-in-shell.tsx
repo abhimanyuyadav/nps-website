@@ -2,7 +2,15 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import type { ReactNode } from "react";
 
-export function StaffSignInShell({ children, configured }: { children: ReactNode; configured: boolean }) {
+export function StaffSignInShell({
+  children,
+  configured,
+  providerForm = false,
+}: {
+  children: ReactNode;
+  configured: boolean;
+  providerForm?: boolean;
+}) {
   return (
     <div className="flex min-h-svh flex-col bg-[#f7f8fd] text-[#1e1f5c]">
       <header className="border-b-2 border-[#f0bd3a] bg-[#262873] text-white">
@@ -33,29 +41,31 @@ export function StaffSignInShell({ children, configured }: { children: ReactNode
         </div>
       </header>
       <main id="main-content" className="mx-auto w-full max-w-[30rem] px-4 py-8 sm:px-5 sm:py-16">
-        <section
-          aria-labelledby="staff-title"
-          className="rounded-2xl border border-[#dfe2f7] bg-white p-5 shadow-[0_8px_28px_rgba(30,31,92,.06)] sm:p-8"
-        >
-          <h1 id="staff-title" className="text-3xl font-extrabold tracking-tight">
-            Staff sign in
-          </h1>
-          {configured ? (
-            <>
-              <p className="mt-2 text-sm leading-6 text-slate-600">
-                Use your school account to open the staff portal.
-              </p>
-              <div className="mt-6 min-w-0 [&_.cl-card]:w-full [&_.cl-card]:border-0 [&_.cl-card]:p-0 [&_.cl-card]:shadow-none [&_.cl-footer]:bg-transparent [&_.cl-rootBox]:w-full">
-                {children}
+        {configured && providerForm ? (
+          children
+        ) : (
+          <section
+            aria-labelledby="staff-title"
+            className="rounded-2xl border border-[#dfe2f7] bg-white p-5 shadow-[0_8px_28px_rgba(30,31,92,.06)] sm:p-8"
+          >
+            <h1 id="staff-title" className="text-3xl font-extrabold tracking-tight">
+              Staff sign in
+            </h1>
+            {configured ? (
+              <>
+                <p className="mt-2 text-sm leading-6 text-slate-600">
+                  Use your school account to open the staff portal.
+                </p>
+                <div className="mt-6 min-w-0">{children}</div>
+              </>
+            ) : (
+              <div role="status" className="mt-5 rounded-lg bg-amber-50 p-4 text-sm text-amber-950">
+                <h2 className="font-bold">Authentication setup required</h2>
+                <p className="mt-1">Staff sign-in is unavailable. Please contact the school administrator.</p>
               </div>
-            </>
-          ) : (
-            <div role="status" className="mt-5 rounded-lg bg-amber-50 p-4 text-sm text-amber-950">
-              <h2 className="font-bold">Authentication setup required</h2>
-              <p className="mt-1">Staff sign-in is unavailable. Please contact the school administrator.</p>
-            </div>
-          )}
-        </section>
+            )}
+          </section>
+        )}
       </main>
     </div>
   );

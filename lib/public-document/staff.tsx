@@ -51,7 +51,7 @@ export function renderStaffSignIn(
           <a className="skip-link" href="#main-content">
             Skip to main content
           </a>
-          <StaffSignInShell configured={Boolean(domain)}>
+          <StaffSignInShell configured={Boolean(domain)} providerForm={method === "provider"}>
             {method === "choose" ? (
               <div className="w-full space-y-4">
                 <Link

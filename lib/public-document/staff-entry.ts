@@ -1,3 +1,4 @@
+import { staffSignInAppearance } from "../staff-sign-in-appearance";
 import { bindStaffEmailForm } from "./staff-email";
 // Clerk owns the sign-in form, the session, and every verification step.
 type StaffClerk = {
@@ -38,7 +39,12 @@ async function mountStaffSignIn() {
       return;
     }
     target.replaceChildren();
-    browser.Clerk.mountSignIn(target, { routing: "path", path: "/sign-in", forceRedirectUrl: "/admin" });
+    browser.Clerk.mountSignIn(target, {
+      appearance: staffSignInAppearance,
+      routing: "path",
+      path: "/sign-in",
+      forceRedirectUrl: "/admin",
+    });
   } catch {
     // Fall back to the existing Next integration, preserving callback and verification parameters.
     const fallback = new URL(window.location.href);

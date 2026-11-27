@@ -1,3 +1,4 @@
+import { staffSignInAppearance } from "@/lib/staff-sign-in-appearance";
 import { SignIn } from "@clerk/nextjs";
 import { StaffSignInShell } from "@/components/site/staff-sign-in-shell";
 
@@ -16,8 +17,14 @@ export default function SignInPage() {
   );
 
   return (
-    <StaffSignInShell configured={configured}>
-      <SignIn routing="path" path="/sign-in" forceRedirectUrl="/admin" signUpUrl={undefined} />
+    <StaffSignInShell configured={configured} providerForm>
+      <SignIn
+        appearance={staffSignInAppearance}
+        routing="path"
+        path="/sign-in"
+        forceRedirectUrl="/admin"
+        signUpUrl={undefined}
+      />
     </StaffSignInShell>
   );
 }
