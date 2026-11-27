@@ -1,0 +1,121 @@
+"""Transcribe a short mono 16 kHz PCM command in memory on the school server."""
+import hashlib
+import json
+import os
+import tempfile
+import threading
+from functools import lru_cache
+from http.server import BaseHTTPRequestHandler
+from pathlib import Path
+from urllib.request import urlopen
+
+# Immutable weight revisions and verified file digests. The Nepali model decodes
+# Devanagari more accurately than the small multilingual command model.
+WEIGHTS = {
+    "en": (
+        "https://huggingface.co/ggerganov/whisper.cpp/resolve/f281eb45af861ab5e5297d23694b7d46e090c02c/ggml-tiny-q5_1.bin",
+        "818710568da3ca15689e31a743197b520007872ff9576237bda97bd1b469c3d7",
+    ),
+    "ne": (
+        "https://huggingface.co/Anurag9817/whisper-small-nepali-ggml/resolve/1452520571fb2daeda82ca80cb10ef15efc5f651/ggml-small-nepali-q5_1.bin",
+        "b8f5d009903d320e0a524605cab7b9ef46fd36363b5e9b60c3a0c763e42ca2d8",
+    ),
+}
+LOCK = threading.Lock()
+SAMPLE_RATE = 16000
+MAX_BYTES = 2 * SAMPLE_RATE * 10
+
+
+@lru_cache(maxsize=2)
+def model(language):
+    from pywhispercpp.model import Model
+    url, expected = WEIGHTS[language]
+    path = Path(tempfile.gettempdir()) / ("whisper-" + expected + ".bin")
+    if not path.exists():
+        with tempfile.NamedTemporaryFile(dir=path.parent, delete=False) as target:
+            temporary = Path(target.name)
+        try:
+            digest = hashlib.sha256()
+            with urlopen(url, timeout=30) as source, temporary.open("wb") as target:
+                while chunk := source.read(1024 * 1024):
+                    digest.update(chunk)
+                    target.write(chunk)
+            if digest.hexdigest() != expected:
+                raise ValueError("Invalid speech model")
+            os.replace(temporary, path)
+        finally:
+            temporary.unlink(missing_ok=True)
+    return Model(str(path), n_threads=2, print_realtime=False, print_progress=False,
+                 print_timestamps=False, context_params={"use_gpu": False})
+
+
+def transcribe(audio, language, preview=False):
+    import numpy as np
+    samples = np.frombuffer(audio, dtype="<i2").astype(np.float32) / 32768
+    voiced = np.flatnonzero(np.abs(samples) >= 0.003)
+    if not len(voiced):
+        return ""
+    # Short commands often include several seconds of microphone silence.
+    padding = SAMPLE_RATE // 5
+    samples = samples[max(0, voiced[0] - padding):voiced[-1] + padding + 1]
+    # Drafts use the lightweight multilingual model. The complete recording
+    # gets an independent pass in the selected language before any action.
+    if preview:
+        options = {"temperature_inc": 0.0, "initial_prompt": ""}
+        if language == "ne":
+            options["initial_prompt"] = "यो संवाद नेपाली भाषामा छ।"
+        segments = model("en").transcribe(samples, language=language, translate=False,
+                                          no_context=True, **options)
+    else:
+        options = {"audio_ctx": 768, "no_timestamps": True, "temperature_inc": 0.0, "max_tokens": 64} if language == "ne" else {"initial_prompt": "", "temperature_inc": 0.2}
+        segments = model(language).transcribe(samples, language=language, translate=False, no_context=True, **options)
+    return " ".join(segment.text.strip() for segment in segments).strip()[:1500]
+
+
+class handler(BaseHTTPRequestHandler):
+    def reply(self, status, data):
+        payload = json.dumps(data).encode()
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(payload)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(payload)
+
+    def do_POST(self):
+        try:
+            size = int(self.headers.get("Content-Length", "0"))
+        except ValueError:
+            size = 0
+        language = self.headers.get("X-Voice-Language", "")
+        if self.headers.get("Sec-Fetch-Site") == "cross-site":
+            return self.reply(403, {"error": "Open Ask NPS on the school website."})
+        if self.headers.get("X-Voice-Stage") == "prepare" and size == 0 and language in ("en", "ne"):
+            if not LOCK.acquire(timeout=3):
+                return self.reply(429, {"error": "Voice transcription is busy. Please try again shortly."})
+            try:
+                model("en")
+            except Exception as exc:
+                print("Voice preparation unavailable:", type(exc).__name__, flush=True)
+                return self.reply(503, {"error": "The school transcription service is temporarily unavailable."})
+            finally:
+                LOCK.release()
+            return self.reply(200, {"ready": True})
+        if (self.headers.get("Content-Type") != "application/octet-stream" or
+                language not in ("en", "ne") or not 6400 <= size <= MAX_BYTES or size % 2):
+            return self.reply(400, {"error": "Record a short command in English or Nepali."})
+        audio = self.rfile.read(size)
+        if len(audio) != size:
+            return self.reply(400, {"error": "The recording was incomplete."})
+        if not LOCK.acquire(timeout=1):
+            return self.reply(429, {"error": "Voice transcription is busy. Please try again shortly."})
+        try:
+            text = transcribe(audio, language, self.headers.get("X-Voice-Stage") == "preview")
+        except Exception as exc:
+            print("Voice transcription unavailable:", type(exc).__name__, flush=True)
+            return self.reply(503, {"error": "The school transcription service is temporarily unavailable."})
+        finally:
+            LOCK.release()
+        if not text:
+            return self.reply(422, {"error": "No speech was detected. Speak closer to the microphone and try again."})
+        self.reply(200, {"text": text})

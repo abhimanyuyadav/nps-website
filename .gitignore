@@ -1,5 +1,22 @@
 .next/
 node_modules/
-.env.local
-.env*.local
+coverage/
+playwright-report/
+test-results/
+.lighthouse/
+*.tsbuildinfo
+
+# Never commit environment files. Keep only the documented template.
+.env
+.env.*
 !.env.example
+
+# Convex local state and generated temporary output.
+.convex/
+convex/.env.local
+
+# Local editor and operating-system files.
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

@@ -1,3 +1,0 @@
-import { NoticesDirectory } from "@/components/site/notices-directory";
-import { PageHero, SiteShell } from "@/components/site/site-shell";
-export default function NoticesPage() { return <SiteShell><PageHero eyebrow="Notices" title="Official updates for the NPS community." description="Search verified school announcements, admissions information, examination notices, events, and downloadable documents." crumbs={["Notices"]}/><section className="mx-auto max-w-5xl px-5 py-20 sm:px-8"><NoticesDirectory/><p className="mt-8 text-center text-xs text-slate-500">Notices are published and managed by authorized school staff.</p></section></SiteShell>; }
