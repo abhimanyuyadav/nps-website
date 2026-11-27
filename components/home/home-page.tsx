@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { ArrowRight } from "lucide-react";
 import { AboutSection } from "@/components/home/about-section";
 import { AlumniSection } from "@/components/home/alumni-section";
@@ -64,7 +65,7 @@ export async function HomePage() {
   return (
     <>
       <HeroCarousel slides={publishedSlides}>
-        <div className="max-w-3xl">
+        <div className="home-hero-copy max-w-3xl">
           <p className="anim-fade-up flex items-center gap-3 text-[11px] font-extrabold tracking-[.26em] text-[#f0bd3a] uppercase">
             <span aria-hidden="true" className="h-px w-9 bg-[#f0bd3a]" />
             {hero?.eyebrow ?? site.location}
@@ -90,6 +91,7 @@ export async function HomePage() {
           {hero?.ctaLabel && hero.ctaHref && (
             <div className="anim-fade-up mt-9 flex flex-wrap gap-3" style={{ animationDelay: "340ms" }}>
               <Link
+                prefetch={false}
                 href={hero.ctaHref}
                 className="group inline-flex max-w-full items-center gap-2 rounded-xl bg-[#2e3192] px-6 py-3.5 text-sm font-extrabold text-white shadow-lg shadow-black/20 transition hover:bg-[#3a3fa5]"
               >
@@ -105,22 +107,34 @@ export async function HomePage() {
       </HeroCarousel>
 
       <div className="home-deferred-section">
-        <AboutSection site={site} section={sections.about} pillars={aboutPillars} />
+        <Suspense fallback={null}>
+          <AboutSection site={site} section={sections.about} pillars={aboutPillars} />
+        </Suspense>
       </div>
       <div className="home-deferred-section">
-        <ManagementMessage leaders={leaders} section={sections.management} />
+        <Suspense fallback={null}>
+          <ManagementMessage leaders={leaders} section={sections.management} />
+        </Suspense>
       </div>
       <div className="home-deferred-section">
-        <NewsEvents news={news} events={events} notices={notices} section={sections.news} />
+        <Suspense fallback={null}>
+          <NewsEvents news={news} events={events} notices={notices} section={sections.news} />
+        </Suspense>
       </div>
       <div className="home-deferred-section">
-        <EcaActivities section={sections.eca} cards={ecaCards} />
+        <Suspense fallback={null}>
+          <EcaActivities section={sections.eca} cards={ecaCards} />
+        </Suspense>
       </div>
       <div className="home-deferred-section">
-        <GalleryPreview albums={albums} section={sections.gallery} />
+        <Suspense fallback={null}>
+          <GalleryPreview albums={albums} section={sections.gallery} />
+        </Suspense>
       </div>
       <div className="home-deferred-section">
-        <AlumniSection testimonials={testimonials} section={sections.alumni} />
+        <Suspense fallback={null}>
+          <AlumniSection testimonials={testimonials} section={sections.alumni} />
+        </Suspense>
       </div>
     </>
   );

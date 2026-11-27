@@ -21,7 +21,7 @@ export function HeroCarousel({ slides, children }: { slides: readonly HeroSlide[
   const [previousIndex, setPreviousIndex] = useState<number | null>(null);
   const [interactionPaused, setInteractionPaused] = useState(false);
   const [autoPlayPaused, setAutoPlayPaused] = useState(false);
-  const [canPrefetchNext, setCanPrefetchNext] = useState(false);
+  const [preparedFor, setPreparedFor] = useState<number | null>(null);
   const [reduced, setReduced] = useState(false);
   const count = slides.length;
   const paused = interactionPaused || autoPlayPaused;
@@ -54,8 +54,12 @@ export function HeroCarousel({ slides, children }: { slides: readonly HeroSlide[
 
   useEffect(() => {
     if (paused || reduced || count < 2) return;
+    const prepare = window.setTimeout(() => setPreparedFor(index), INTERVAL_MS - 2000);
     const timer = window.setTimeout(() => go(index + 1), INTERVAL_MS);
-    return () => window.clearTimeout(timer);
+    return () => {
+      window.clearTimeout(prepare);
+      window.clearTimeout(timer);
+    };
   }, [count, go, index, paused, reduced]);
 
   function handleKeyDown(event: React.KeyboardEvent) {
@@ -90,7 +94,7 @@ export function HeroCarousel({ slides, children }: { slides: readonly HeroSlide[
       {slides.map((slide, slideIndex) =>
         slideIndex === index ||
         slideIndex === previousIndex ||
-        (canPrefetchNext && slideIndex === nextIndex) ? (
+        (preparedFor === index && slideIndex === nextIndex) ? (
           <div
             key={slide.src}
             aria-hidden={slideIndex !== index}
@@ -104,13 +108,15 @@ export function HeroCarousel({ slides, children }: { slides: readonly HeroSlide[
               src={slide.src}
               alt={slideIndex === index ? slide.alt : ""}
               fill
-              fetchPriority={slideIndex === index ? "high" : "low"}
-              loading={slideIndex === index ? "eager" : "lazy"}
+              preload={slideIndex === 0 && index === 0}
+              fetchPriority={
+                slideIndex === 0 && index === 0 ? undefined : slideIndex === index ? "high" : "low"
+              }
+              loading={slideIndex === 0 && index === 0 ? undefined : "eager"}
               decoding="async"
               quality={slideIndex === 0 ? 65 : 75}
               sizes="100vw"
               className="object-cover object-center"
-              onLoad={slideIndex === index ? () => setCanPrefetchNext(true) : undefined}
             />
           </div>
         ) : null,

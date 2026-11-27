@@ -283,7 +283,7 @@ export function SiteHeader({
             scrolled ? "h-[68px]" : "h-[86px]"
           }`}
         >
-          <Link href="/" className="group flex min-w-0 items-center gap-3">
+          <Link href="/" prefetch={false} className="group flex min-w-0 items-center gap-3">
             <span className="relative shrink-0">
               <span
                 aria-hidden="true"
@@ -422,6 +422,7 @@ export function SiteHeader({
           <div className="flex items-center gap-2">
             <Link
               href="/search"
+              prefetch={false}
               aria-label="Search the website"
               className="grid h-10 w-10 place-items-center rounded-full text-white transition duration-300 hover:scale-105 hover:bg-white/10"
             >

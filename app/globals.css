@@ -91,6 +91,12 @@ img {
   max-width: 100%;
 }
 
+@media (max-width: 639px) {
+  .home-hero-copy .anim-fade-up {
+    animation: none;
+  }
+}
+
 /* Let the browser postpone layout and paint for home-page sections that are
    far below the viewport while keeping their complete server-rendered markup
    available to search engines, assistive technology, and in-page search. */
