@@ -16,7 +16,7 @@ const shell = {
   newsletterAvailable: true,
   search: {},
 };
-const parse = (s: string) => new DOMParser().parseFromString(s, "text/html");
+const parse = (response: { html: string }) => new DOMParser().parseFromString(response.html, "text/html");
 describe("public documents", () => {
   it("serves a usable contact form and loads the script for that form", async () => {
     const doc = parse(await renderPublicPage({ ...shell, pathname: "/contact" }));
@@ -48,5 +48,13 @@ describe("public documents", () => {
     );
     expect(paused.querySelector("main")?.textContent).toContain("Scheduled maintenance");
     expect(paused.querySelector("form")).toBeNull();
+  });
+  it("returns the school 404 page for missing resources", async () => {
+    const response = await renderPublicPage({ ...shell, pathname: "/unlisted-resource" });
+    expect(response.status).toBe(404);
+    expect(parse(response).querySelector('a[href="/search"]')).toBeTruthy();
+    expect(parse(response).querySelector('meta[name="robots"]')?.getAttribute("content")).toContain(
+      "noindex",
+    );
   });
 });

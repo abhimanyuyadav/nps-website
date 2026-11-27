@@ -1,2 +1,3 @@
 export { usePathname, useRouter } from "../home-document/navigation";
-export { notFound, redirect, permanentRedirect } from "next/navigation";
+export { notFound } from "./not-found";
+export { redirect, permanentRedirect } from "next/navigation";

@@ -2,12 +2,12 @@ import { showsMaintenanceNotice } from "@/lib/content/maintenance-routes";
 import { h } from "preact";
 import { renderToStringAsync } from "preact-render-to-string";
 import { pages } from "school-page-modules";
-import { notFound } from "next/navigation";
+import { notFound, PublicPageNotFound, renderMissingPage } from "./not-found";
 import { DocumentPath } from "../home-document/path";
 import { renderDocument } from "../home-document/document";
 import type { PageDocumentData } from "./types";
 
-export async function renderPublicPage(data: PageDocumentData) {
+async function renderPage(data: PageDocumentData) {
   const parts = data.pathname.slice(1).split("/");
   const key = Object.keys(pages).find((pattern) => {
     const segments = pattern.slice(1).split("/");
@@ -65,4 +65,13 @@ export async function renderPublicPage(data: PageDocumentData) {
       body,
     },
   );
+}
+
+export async function renderPublicPage(data: PageDocumentData) {
+  try {
+    return { status: 200, html: await renderPage(data) };
+  } catch (error) {
+    if (!(error instanceof PublicPageNotFound)) throw error;
+    return { status: 404, html: renderMissingPage() };
+  }
 }

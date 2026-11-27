@@ -21,7 +21,7 @@ export async function GET(request: NextRequest, context: RouteContext<"/school-p
     getNavigation("utility"),
     getNavigation("footer"),
   ]);
-  const html = await renderPublicPage({
+  const { html, status } = await renderPublicPage({
     pathname,
     search,
     site,
@@ -39,6 +39,7 @@ export async function GET(request: NextRequest, context: RouteContext<"/school-p
   // Only anonymous, query-free editorial documents can share an edge copy. Forms, account
   // pages, searches and token links always reflect the request and the latest available data.
   if (
+    status === 200 &&
     !params.size &&
     !/^\/(?:student|forms|search|newsletter|articles)(?:\/|$)/.test(pathname) &&
     !["/events/cancel", "/admissions/submitted"].includes(pathname)
@@ -46,5 +47,5 @@ export async function GET(request: NextRequest, context: RouteContext<"/school-p
     headers.set("Cache-Control", "public, max-age=0, must-revalidate");
     headers.set("Vercel-CDN-Cache-Control", "public, s-maxage=60, stale-while-revalidate=60");
   }
-  return new Response(html, { headers });
+  return new Response(html, { status, headers });
 }
