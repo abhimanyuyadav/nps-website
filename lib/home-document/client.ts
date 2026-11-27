@@ -23,6 +23,6 @@ if ("IntersectionObserver" in window) {
     },
     { rootMargin: "480px 0px" },
   );
-  for (const section of document.querySelectorAll(".home-deferred-section")) sections.observe(section);
+  for (const section of document.querySelectorAll(".home-deferred-section, footer")) sections.observe(section);
   document.documentElement.classList.add("reveal-enabled");
 }
