@@ -106,7 +106,7 @@ const nextConfig: NextConfig = {
       { source: "/school-home-document", destination: "/", permanent: true },
       { source: "/school-pages/:parts*", destination: "/:parts*", permanent: true },
       { source: "/login", destination: "/sign-in", permanent: true },
-      { source: "/forgot-password", destination: "/sign-in", permanent: true },
+      { source: "/forgot-password", destination: "/sign-in?staff-method=recover", permanent: false },
       { source: "/academics/faculty", destination: "/departments", permanent: true },
       { source: "/academics/downloads", destination: "/downloads", permanent: true },
       { source: "/admin/announcements", destination: "/admin/notices", permanent: true },

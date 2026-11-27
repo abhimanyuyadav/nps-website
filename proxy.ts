@@ -21,13 +21,15 @@ const clerkProxy = clerkConfigured
 
 export function proxy(request: NextRequest, event: NextFetchEvent) {
   if (!clerkProxy) return NextResponse.next();
-  // The public method chooser and email entry form contain no session data.
+  // The public method chooser and initial credential forms contain no session data.
   // Keep all callbacks, provider screens, returning sessions and admin routes on Clerk.
   if (
     process.env.NODE_ENV === "production" &&
     request.method === "GET" &&
     request.nextUrl.pathname === "/sign-in" &&
-    (!request.nextUrl.search || request.nextUrl.search === "?staff-method=email") &&
+    ["", "?staff-method=email", "?staff-method=provider", "?staff-method=recover"].includes(
+      request.nextUrl.search,
+    ) &&
     !request.headers.has("cookie") &&
     !request.headers.has("authorization") &&
     !request.headers.has("rsc")

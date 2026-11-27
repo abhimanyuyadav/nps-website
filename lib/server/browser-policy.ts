@@ -10,18 +10,30 @@ const clerkFapiOrigin = (() => {
   }
 })();
 
-export function schoolContentSecurityPolicy(scriptMode: "application" | "public" | "none" = "application") {
+export function schoolContentSecurityPolicy(
+  scriptMode: "application" | "public" | "none" | "staff-form" = "application",
+  identityOrigin?: string,
+) {
   return [
     "default-src 'self'",
     "base-uri 'self'",
-    "form-action 'self'",
+    scriptMode === "staff-form" ? "form-action 'none'" : "form-action 'self'",
     "frame-ancestors 'none'",
     "object-src 'none'",
-    scriptMode === "none"
-      ? "script-src 'none'"
-      : scriptMode === "public"
-        ? "script-src 'self' https://challenges.cloudflare.com"
-        : `script-src 'self' 'unsafe-inline'${isProduction ? "" : " 'unsafe-eval'"} https://*.clerk.accounts.dev https://*.clerk.com https://*.protect.clerk.com https://challenges.cloudflare.com${clerkFapiOrigin}`,
+    scriptMode === "staff-form"
+      ? [
+          "script-src 'self'",
+          identityOrigin,
+          "https://*.protect.clerk.com",
+          "https://challenges.cloudflare.com",
+        ]
+          .filter(Boolean)
+          .join(" ")
+      : scriptMode === "none"
+        ? "script-src 'none'"
+        : scriptMode === "public"
+          ? "script-src 'self' https://challenges.cloudflare.com"
+          : `script-src 'self' 'unsafe-inline'${isProduction ? "" : " 'unsafe-eval'"} https://*.clerk.accounts.dev https://*.clerk.com https://*.protect.clerk.com https://challenges.cloudflare.com${clerkFapiOrigin}`,
     "style-src 'self' 'unsafe-inline'",
     "font-src 'self' data:",
     `img-src 'self' data: blob: https://*.convex.cloud https://img.clerk.com https://images.clerk.dev${clerkFapiOrigin}`,

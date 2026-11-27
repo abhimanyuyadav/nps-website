@@ -1,3 +1,4 @@
+import { schoolContentSecurityPolicy } from "@/lib/server/browser-policy";
 import type { NextRequest } from "next/server";
 import { getNavigation, getSiteProfile } from "@/lib/data/public";
 import { getSiteUrl } from "@/lib/server/site-url";
@@ -32,6 +33,7 @@ export async function GET(request: NextRequest, context: RouteContext<"/school-p
     newsletterAvailable: hasPublicFormConfiguration(),
   });
   const headers = new Headers({
+    "Content-Security-Policy": schoolContentSecurityPolicy("public"),
     "Content-Type": "text/html; charset=utf-8",
     "Cache-Control": "private, no-store",
     Vary: "RSC, Accept",

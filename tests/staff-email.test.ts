@@ -2,17 +2,18 @@ import { expect, it, vi } from "vitest";
 import { renderStaffSignIn } from "@/lib/home-document/generated/staff.mjs";
 import { bindStaffEmailForm } from "@/lib/public-document/staff-email";
 
-function setup(status: "complete" | "needs_second_factor") {
-  const html = renderStaffSignIn("email", "identity.example", "test-key", "Staff", "/icon");
+function setup(
+  status: "complete" | "needs_second_factor",
+  method: "email" | "password" | "recover" = "email",
+) {
+  const html = renderStaffSignIn(method, "identity.example", "test-key", "Staff", "/icon");
   document.body.innerHTML = new DOMParser().parseFromString(html, "text/html").body.innerHTML;
   const prepareFirstFactor = vi.fn().mockResolvedValue(undefined);
-  const create = vi
-    .fn()
-    .mockResolvedValue({
-      status: "needs_first_factor",
-      supportedFirstFactors: [{ strategy: "email_code", emailAddressId: "test-email" }],
-      prepareFirstFactor,
-    });
+  const create = vi.fn().mockResolvedValue({
+    status: "needs_first_factor",
+    supportedFirstFactors: [{ strategy: "email_code", emailAddressId: "test-email" }],
+    prepareFirstFactor,
+  });
   const setActive = vi.fn();
   const attemptFirstFactor = vi
     .fn()
@@ -64,4 +65,39 @@ it("keeps access closed when the provider rejects a code", async () => {
   await vi.waitFor(() => expect(f.form.textContent).toContain("Could not verify"));
   expect(f.setActive).not.toHaveBeenCalled();
   expect(f.navigate).not.toHaveBeenCalled();
+});
+
+it("sends a password only to the identity provider and honors MFA", async () => {
+  const f = setup("needs_second_factor", "password");
+  f.create.mockResolvedValue({ status: "needs_second_factor" });
+  f.form.querySelector<HTMLInputElement>("#staff-password")!.value = "fictional-test-password";
+  f.submit();
+  await vi.waitFor(() => expect(f.navigate).toHaveBeenCalledWith("/sign-in/factor-two"));
+  expect(f.create).toHaveBeenCalledWith({
+    identifier: "teacher@example.invalid",
+    password: "fictional-test-password",
+  });
+  expect(f.setActive).not.toHaveBeenCalled();
+});
+
+it("requires the provider to verify the reset code before activating the session", async () => {
+  const f = setup("complete", "recover");
+  f.submit();
+  await vi.waitFor(() => expect(f.code.disabled).toBe(false));
+  expect(f.create).toHaveBeenCalledWith({
+    identifier: "teacher@example.invalid",
+    strategy: "reset_password_email_code",
+  });
+  expect(f.setActive).not.toHaveBeenCalled();
+  f.code.value = "123456";
+  f.form.querySelector<HTMLInputElement>("#staff-new-password")!.value = "fictional-new-password";
+  f.submit();
+  await vi.waitFor(() =>
+    expect(f.setActive).toHaveBeenCalledWith({ session: "test-session", redirectUrl: "/admin" }),
+  );
+  expect(f.attemptFirstFactor).toHaveBeenCalledWith({
+    strategy: "reset_password_email_code",
+    code: "123456",
+    password: "fictional-new-password",
+  });
 });

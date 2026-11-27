@@ -12,7 +12,15 @@ export async function GET(request: Request) {
   const params = new URL(request.url).searchParams;
   const selected = params.get("staff-method");
   const method =
-    selected === "email" || selected === "google" ? selected : params.size ? "provider" : "choose";
+    params.size === 1 && selected === "provider"
+      ? "password"
+      : selected === "recover" || selected === "email" || selected === "google"
+        ? selected
+        : params.size
+          ? "provider"
+          : "choose";
+  const nativeForm = method === "email" || method === "password" || method === "recover";
+  const policyMode = method === "choose" ? "none" : nativeForm ? "staff-form" : "application";
   const html = renderStaffSignIn(
     method,
     domain,
@@ -22,7 +30,10 @@ export async function GET(request: Request) {
   );
   return new Response(html, {
     headers: {
-      "Content-Security-Policy": schoolContentSecurityPolicy(method === "choose" ? "none" : "application"),
+      "Content-Security-Policy": schoolContentSecurityPolicy(
+        policyMode,
+        domain ? new URL("https://" + domain).origin : undefined,
+      ),
       "Content-Type": "text/html; charset=utf-8",
       "Cache-Control": "private, no-store",
       "X-Robots-Tag": "noindex, nofollow",
