@@ -1,7 +1,15 @@
 import Link from "next/link";
 import { KeyRound, ShieldCheck } from "lucide-react";
 import type { ReactNode } from "react";
-export function StaffSignInShell({ children, configured }: { children: ReactNode; configured: boolean }) {
+export function StaffSignInShell({
+  children,
+  configured,
+  compact = false,
+}: {
+  children: ReactNode;
+  configured: boolean;
+  compact?: boolean;
+}) {
   return (
     <main
       id="main-content"
@@ -36,7 +44,9 @@ export function StaffSignInShell({ children, configured }: { children: ReactNode
         </div>
 
         {configured ? (
-          <div className="mt-7 flex min-h-[26rem] justify-center [&_.cl-card]:w-full [&_.cl-card]:border-0 [&_.cl-card]:p-0 [&_.cl-card]:shadow-none [&_.cl-footer]:bg-transparent [&_.cl-rootBox]:w-full">
+          <div
+            className={`mt-7 flex ${compact ? "" : "min-h-[26rem]"} justify-center [&_.cl-card]:w-full [&_.cl-card]:border-0 [&_.cl-card]:p-0 [&_.cl-card]:shadow-none [&_.cl-footer]:bg-transparent [&_.cl-rootBox]:w-full`}
+          >
             {children}
           </div>
         ) : (

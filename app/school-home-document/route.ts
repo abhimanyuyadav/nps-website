@@ -1,3 +1,4 @@
+import { schoolContentSecurityPolicy } from "@/lib/server/browser-policy";
 import { getPublicHome } from "@/lib/data/home";
 import { getNavigation } from "@/lib/data/public";
 import { hasPublicFormConfiguration } from "@/lib/server/form-configuration";
@@ -21,5 +22,11 @@ export async function GET() {
     newsletterAvailable: hasPublicFormConfiguration(),
     origin: getSiteUrl(),
   });
-  return new Response(html, { headers: { "Content-Type": "text/html; charset=utf-8", Vary: "RSC, Accept" } });
+  return new Response(html, {
+    headers: {
+      "Content-Security-Policy": schoolContentSecurityPolicy("public"),
+      "Content-Type": "text/html; charset=utf-8",
+      Vary: "RSC, Accept",
+    },
+  });
 }

@@ -188,7 +188,6 @@ export function ManagementCarousel({ leaders }: { leaders: readonly PublicLeader
                   key={leader.id}
                   type="button"
                   onClick={() => go(leaderIndex)}
-                  aria-label={`${leader.name} ${leader.designation}. Show message`}
                   aria-current={isActive}
                   className={`hover-lift relative flex items-center gap-3 overflow-hidden rounded-2xl border p-3 text-left transition ${
                     isActive

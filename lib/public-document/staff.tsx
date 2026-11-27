@@ -1,10 +1,12 @@
 /* eslint-disable @next/next/no-head-element -- This endpoint emits a complete HTML document. */
 import "../home-document/safe-urls";
+import Link from "next/link";
 import { renderToString } from "preact-render-to-string";
 import { StaffSignInShell } from "@/components/site/staff-sign-in-shell";
 declare const HOME_ASSETS: { css: string; font: string };
 declare const STAFF_SCRIPT: string;
 export function renderStaffSignIn(
+  method: "choose" | "google" | "provider",
   domain: string | undefined,
   key: string | undefined,
   title: string,
@@ -26,7 +28,7 @@ export function renderStaffSignIn(
           <link rel="icon" href={icon} />
           <link rel="preload" as="font" type="font/woff2" href={HOME_ASSETS.font} crossOrigin="anonymous" />
           <link rel="stylesheet" href={HOME_ASSETS.css} />
-          {domain && (
+          {domain && method !== "choose" && (
             <>
               <link rel="preconnect" href={"https://" + domain} crossOrigin="anonymous" />
               <script
@@ -48,8 +50,30 @@ export function renderStaffSignIn(
           <a className="skip-link" href="#main-content">
             Skip to main content
           </a>
-          <StaffSignInShell configured={Boolean(domain)}>
-            <div className="w-full" id="staff-clerk" />
+          <StaffSignInShell configured={Boolean(domain)} compact={method === "choose"}>
+            {method === "choose" ? (
+              <div className="w-full space-y-4">
+                <Link
+                  href="/sign-in?staff-method=google"
+                  className="block rounded-xl bg-[#2e3192] px-4 py-3 text-center text-sm font-bold text-white"
+                >
+                  Continue with Google
+                </Link>
+                <Link
+                  href="/sign-in?staff-method=email"
+                  className="block rounded-xl border border-slate-300 px-4 py-3 text-center text-sm font-bold text-slate-800"
+                >
+                  Sign in with email or another method
+                </Link>
+              </div>
+            ) : (
+              <div className="w-full" id="staff-clerk" data-method={method}>
+                <p role="status">Opening secure sign-in…</p>
+                <Link href="/sign-in?staff-ui=next" className="text-sm font-bold text-sky-700">
+                  Open the full sign-in form
+                </Link>
+              </div>
+            )}
           </StaffSignInShell>
         </body>
       </html>,

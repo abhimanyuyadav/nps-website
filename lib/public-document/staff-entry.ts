@@ -1,6 +1,15 @@
 // Clerk owns the sign-in form, the session, and every verification step.
 type StaffClerk = {
   isSignedIn: boolean;
+  client: {
+    signIn: {
+      authenticateWithRedirect(options: {
+        strategy: "oauth_google";
+        redirectUrl: string;
+        redirectUrlComplete: string;
+      }): Promise<void>;
+    };
+  };
   load(options: object): Promise<void>;
   mountSignIn(node: HTMLElement, options: object): void;
 };
@@ -19,6 +28,15 @@ async function mountStaffSignIn() {
       window.location.replace("/admin");
       return;
     }
+    if (target.dataset.method === "google") {
+      await browser.Clerk.client.signIn.authenticateWithRedirect({
+        strategy: "oauth_google",
+        redirectUrl: "/sign-in/google-callback",
+        redirectUrlComplete: "/admin",
+      });
+      return;
+    }
+    target.replaceChildren();
     browser.Clerk.mountSignIn(target, { routing: "path", path: "/sign-in", forceRedirectUrl: "/admin" });
   } catch {
     // Fall back to the existing Next integration, preserving callback and verification parameters.

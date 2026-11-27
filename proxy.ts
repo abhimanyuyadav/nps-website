@@ -11,7 +11,13 @@ const clerkConfigured = Boolean(
 // Authentication/authorization is enforced by the protected resource itself
 // (app/admin/layout.tsx and Convex role checks). Clerk middleware remains here
 // to attach verified session state to matching requests.
-const clerkProxy = clerkConfigured ? clerkMiddleware() : null;
+const clerkProxy = clerkConfigured
+  ? clerkMiddleware(async (auth, request) => {
+      if (request.nextUrl.pathname === "/sign-in" && !request.nextUrl.search && (await auth()).userId) {
+        return NextResponse.redirect(new URL("/admin", request.url));
+      }
+    })
+  : null;
 
 export function proxy(request: NextRequest, event: NextFetchEvent) {
   if (!clerkProxy) return NextResponse.next();
