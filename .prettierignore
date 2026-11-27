@@ -8,3 +8,5 @@ public/media
 convex/_generated
 convex/**/_generated
 package-lock.json
+lib/home-document/generated/*.mjs
+public/school-home-assets

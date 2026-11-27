@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ArrowRight, Bell, CalendarDays, MapPin, Newspaper } from "lucide-react";
 import { Reveal } from "@/components/site/reveal";
 import { SectionHeading } from "@/components/home/section-heading";
-import { formatEventDateTimeRange, formatPublicDate } from "@/lib/data/public";
+import { formatEventDateTimeRange, formatPublicDate } from "@/lib/content/public-dates";
 import type { HomeSection, PublicEvent, PublicPost } from "@/lib/data/public";
 
 function eventDay(event: PublicEvent) {

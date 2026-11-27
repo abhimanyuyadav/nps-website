@@ -57,6 +57,22 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "images.clerk.dev" },
     ],
   },
+  async rewrites() {
+    return {
+      beforeFiles:
+        process.env.NODE_ENV === "production"
+          ? [
+              {
+                source: "/",
+                missing: [{ type: "header" as const, key: "rsc" }],
+                destination: "/school-home-document",
+              },
+            ]
+          : [],
+      afterFiles: [],
+      fallback: [],
+    };
+  },
   async headers() {
     const privatePages = [
       "/admin/:path*",
@@ -69,6 +85,10 @@ const nextConfig: NextConfig = {
     ];
     return [
       { source: "/(.*)", headers: securityHeaders },
+      {
+        source: "/school-home-assets/:path*",
+        headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
+      },
       ...privatePages.map((source) => ({
         source,
         headers: [
@@ -80,6 +100,7 @@ const nextConfig: NextConfig = {
   },
   async redirects() {
     return [
+      { source: "/school-home-document", destination: "/", permanent: true },
       { source: "/login", destination: "/sign-in", permanent: true },
       { source: "/forgot-password", destination: "/sign-in", permanent: true },
       { source: "/academics/faculty", destination: "/departments", permanent: true },

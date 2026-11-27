@@ -7,6 +7,8 @@ export default defineConfig([
   ...convex.configs.recommended,
   globalIgnores([
     ".next/**",
+    "lib/home-document/generated/*.mjs",
+    "public/school-home-assets/**",
     "node_modules/**",
     "coverage/**",
     "design-references/**",

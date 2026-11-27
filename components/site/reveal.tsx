@@ -6,7 +6,7 @@ type RevealVariant = "up" | "left" | "right" | "scale" | "none";
 
 let observer: IntersectionObserver | undefined;
 
-function observeReveal(node: HTMLElement | null) {
+export function observeReveal(node: HTMLElement | null) {
   if (!node) return;
   if (!("IntersectionObserver" in window)) {
     node.dataset.revealed = "true";

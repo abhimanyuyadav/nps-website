@@ -1,3 +1,4 @@
+import { schoolStructuredData } from "@/lib/content/school-structured-data";
 import type { Metadata, Viewport } from "next";
 import { getSiteProfile } from "@/lib/data/public";
 import { schoolSearchAliases, schoolSearchShortName } from "@/lib/content/school-search";
@@ -60,24 +61,7 @@ export const viewport: Viewport = {
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const site = await getSiteProfile();
-  const organizationJsonLd = {
-    "@context": "https://schema.org",
-    "@type": "School",
-    name: site.schoolName,
-    alternateName: schoolSearchAliases,
-    url: siteUrl,
-    logo: new URL(site.logoUrl ?? "/media/nps-logo.png", siteUrl).toString(),
-    description: site.description,
-    address: {
-      "@type": "PostalAddress",
-      streetAddress: site.location,
-      addressLocality: "Garuda",
-      addressRegion: "Rautahat",
-      addressCountry: "NP",
-    },
-    ...(site.phone ? { telephone: site.phone } : {}),
-    ...(site.email ? { email: site.email } : {}),
-  };
+  const organizationJsonLd = schoolStructuredData(site, siteUrl);
 
   return (
     <html lang="en" data-scroll-behavior="smooth" suppressHydrationWarning>

@@ -1,3 +1,4 @@
+import { websiteStructuredData } from "@/lib/content/school-structured-data";
 import type { Metadata } from "next";
 import { HomePage } from "@/components/home/home-page";
 import { getSiteProfile } from "@/lib/data/public";
@@ -33,14 +34,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default function Page() {
-  const websiteJsonLd = {
-    "@context": "https://schema.org",
-    "@type": "WebSite",
-    name: schoolSearchShortName,
-    alternateName: schoolSearchAliases,
-    url: getSiteUrl(),
-    description: schoolSearchDescription,
-  };
+  const websiteJsonLd = websiteStructuredData(getSiteUrl());
 
   return (
     <>
