@@ -4,7 +4,6 @@ import { AboutSection } from "@/components/home/about-section";
 import { AlumniSection } from "@/components/home/alumni-section";
 import { EcaActivities } from "@/components/home/eca-activities";
 import { GalleryPreview } from "@/components/home/gallery-preview";
-import { OpenSchoolForms } from "@/components/forms/open-school-forms";
 import { HeroCarousel, type HeroSlide } from "@/components/home/hero-carousel";
 import { ManagementMessage } from "@/components/home/management-message";
 import { NewsEvents } from "@/components/home/news-events";
@@ -104,7 +103,6 @@ export async function HomePage() {
           )}
         </div>
       </HeroCarousel>
-      <OpenSchoolForms />
 
       <div className="home-deferred-section">
         <AboutSection site={site} section={sections.about} pillars={aboutPillars} />
