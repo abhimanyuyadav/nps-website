@@ -11,5 +11,18 @@ for (const root of document.querySelectorAll<HTMLElement>("[data-school-control]
   root.removeAttribute("data-props");
 }
 
-for (const element of document.querySelectorAll<HTMLElement>(".reveal")) observeReveal(element);
-document.documentElement.classList.add("reveal-enabled");
+// Observe section boundaries first so distant gallery and news items can retain content-visibility.
+if ("IntersectionObserver" in window) {
+  const sections = new IntersectionObserver(
+    (entries, observer) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        for (const element of entry.target.querySelectorAll<HTMLElement>(".reveal")) observeReveal(element);
+        observer.unobserve(entry.target);
+      }
+    },
+    { rootMargin: "480px 0px" },
+  );
+  for (const section of document.querySelectorAll(".home-deferred-section")) sections.observe(section);
+  document.documentElement.classList.add("reveal-enabled");
+}

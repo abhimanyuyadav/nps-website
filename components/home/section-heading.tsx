@@ -63,7 +63,7 @@ export function SectionHeading({
       {action && (
         <Link
           href={action.href}
-          className={`group inline-flex shrink-0 items-center gap-2 text-sm font-extrabold transition ${
+          className={`group inline-flex min-h-11 shrink-0 items-center gap-2 text-sm font-extrabold transition ${
             tone === "dark" ? "text-[#f0bd3a] hover:text-white" : "text-[#2e3192] hover:text-[#1e1f5c]"
           }`}
         >
