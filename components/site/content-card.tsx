@@ -33,12 +33,12 @@ export function ContentCard({ item, basePath }: { item: PublicPost; basePath: st
           </Link>
         </h2>
         <p className="mt-3 line-clamp-3 text-sm leading-6 text-slate-600">{item.summary}</p>
-        <Link
-          href={`${basePath}/${item.slug}`}
-          className="relative mt-5 inline-flex items-center gap-2 text-sm font-bold text-[#2e3192]"
+        <span
+          aria-hidden="true"
+          className="pointer-events-none mt-5 inline-flex items-center gap-2 text-sm font-bold text-[#2e3192]"
         >
-          Read more <ArrowRight size={15} className="shrink-0" />
-        </Link>
+          Read story <ArrowRight size={15} className="shrink-0" />
+        </span>
       </div>
     </article>
   );

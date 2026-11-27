@@ -138,10 +138,10 @@ export function FacilitiesPage({
                 </h2>
               </div>
               <div className="max-w-sm text-left sm:text-right">
-                <p className="text-sm font-semibold text-slate-500">
+                <p className="text-sm font-semibold text-slate-600">
                   {facilities.length} {facilities.length === 1 ? "facility" : "facilities"} published
                 </p>
-                <p className="mt-1 text-xs leading-5 text-slate-500">
+                <p className="mt-1 text-xs leading-5 text-slate-600">
                   Representative imagery is used where an approved school photograph is not available.
                 </p>
               </div>
