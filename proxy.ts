@@ -21,13 +21,13 @@ const clerkProxy = clerkConfigured
 
 export function proxy(request: NextRequest, event: NextFetchEvent) {
   if (!clerkProxy) return NextResponse.next();
-  // A first visit to the static method chooser has no local session to verify.
+  // The public method chooser and email entry form contain no session data.
   // Keep all callbacks, provider screens, returning sessions and admin routes on Clerk.
   if (
     process.env.NODE_ENV === "production" &&
     request.method === "GET" &&
     request.nextUrl.pathname === "/sign-in" &&
-    !request.nextUrl.search &&
+    (!request.nextUrl.search || request.nextUrl.search === "?staff-method=email") &&
     !request.headers.has("cookie") &&
     !request.headers.has("authorization") &&
     !request.headers.has("rsc")
