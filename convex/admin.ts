@@ -2085,9 +2085,9 @@ export const updateUser = mutation({
         message: "An active staff account must have at least one administration role.",
       });
     }
-    const removesAdmin = target.roles.includes("admin") && !roles.includes("admin");
-    const disablesAdmin = target.roles.includes("admin") && args.status && args.status !== "active";
-    if (removesAdmin || disablesAdmin) {
+    const wasActiveAdmin = target.status === "active" && target.roles.includes("admin");
+    const staysActiveAdmin = nextStatus === "active" && roles.includes("admin");
+    if (wasActiveAdmin && !staysActiveAdmin) {
       const users = await ctx.db
         .query("users")
         .withIndex("by_status", (q) => q.eq("status", "active"))
@@ -2112,8 +2112,13 @@ export const updateUser = mutation({
       action: "user.updated",
       entityType: "users",
       entityId: target._id,
-      summary: `Updated access for ${target.email}.`,
-      metadata: { roles: roles.join(","), status: nextStatus },
+      summary: `Updated access for ${target.email} from ${target.status} (${target.roles.join(", ") || "no roles"}) to ${nextStatus} (${roles.join(", ") || "no roles"}).`,
+      metadata: {
+        previousRoles: target.roles.join(","),
+        previousStatus: target.status,
+        roles: roles.join(","),
+        status: nextStatus,
+      },
     });
     return { ok: true };
   },

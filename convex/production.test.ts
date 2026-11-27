@@ -141,6 +141,29 @@ describe("production authorization boundaries", () => {
     ).rejects.toThrow(/at least one administration role/i);
   });
 
+  it.each(["pending", "suspended"] as const)("lets the sole active admin remove a %s account's admin role", async (status) => {
+    const t = convexTest(schema, modules);
+    const owner = await insertUser(t, "owner", ["admin"]);
+    const inactive = await insertUser(t, "inactive", ["admin"]);
+    await t.run((ctx) => ctx.db.patch("users", inactive, { status }));
+    const staff = t.withIdentity({ subject: "owner" });
+
+    await staff.mutation(api.admin.updateUser, { userId: inactive, roles: [] });
+    const log = await t.run((ctx) => ctx.db.query("auditLogs").unique());
+    expect(log).toMatchObject({
+      action: "user.updated",
+      actorId: owner,
+      entityId: inactive,
+      metadata: { previousStatus: status, previousRoles: "admin", status, roles: "" },
+    });
+    await expect(staff.mutation(api.admin.updateUser, { userId: owner, roles: ["editor"] }))
+      .rejects.toThrow("The final active admin cannot be removed");
+    await expect(staff.mutation(api.admin.updateUser, { userId: owner, status: "suspended" }))
+      .rejects.toThrow("The final active admin cannot be removed");
+    const remaining = await t.run((ctx) => ctx.db.get("users", owner));
+    expect(remaining).toMatchObject({ status: "active", roles: ["admin"] });
+  });
+
   it("reserves operational site settings for administrators", async () => {
     const t = convexTest(schema, modules);
     await insertUser(t, "publisher-user", ["publisher"]);
