@@ -58,15 +58,57 @@ const cssBuild = await build({
   assetNames: "[name]-[hash]",
   loader: { ".woff2": "file", ".woff": "file" },
 });
+const pageControls = JSON.parse(await readFile("lib/public-document/controls.json", "utf8"));
+const pageRoutes = JSON.parse(await readFile("lib/public-document/routes.json", "utf8"));
+const publicEntries = {
+  name: "public-document-entries",
+  setup(api) {
+    api.onResolve({ filter: /^school-page-modules$/ }, () => ({ path: "pages", namespace: "school-pages" }));
+    api.onLoad({ filter: /.*/, namespace: "school-pages" }, () => ({
+      loader: "js",
+      resolveDir: root,
+      contents:
+        pageRoutes
+          .map(
+            (route, i) =>
+              "import * as page" + i + " from " + JSON.stringify("./app/(site)" + route + "/page.tsx") + ";",
+          )
+          .join("\n") +
+        "export const pages={" +
+        pageRoutes.map((route, i) => JSON.stringify(route) + ":page" + i).join(",") +
+        "};",
+    }));
+    api.onResolve({ filter: /^control-entry:/ }, (args) => ({
+      path: args.path.slice(14),
+      namespace: "page-control-entry",
+    }));
+    api.onLoad({ filter: /.*/, namespace: "page-control-entry" }, (args) => ({
+      loader: "js",
+      resolveDir: root,
+      contents:
+        "import {activatePageControl} from './lib/public-document/activate';import {" +
+        args.path +
+        " as Control} from " +
+        JSON.stringify("./" + pageControls[args.path]) +
+        ";activatePageControl(" +
+        JSON.stringify(args.path) +
+        ",Control);",
+    }));
+  },
+};
 const browserBuild = await build({
   ...common,
-  entryPoints: ["lib/home-document/client.ts"],
+  entryPoints: {
+    home: "lib/home-document/client.ts",
+    ...Object.fromEntries(Object.keys(pageControls).map((name) => [name, "control-entry:" + name])),
+  },
+  plugins: [publicEntries],
   format: "esm",
   platform: "browser",
   splitting: true,
   target: "es2020",
   outdir: assetsDir,
-  entryNames: "home-[hash]",
+  entryNames: "[name]-[hash]",
   chunkNames: "chunk-[hash]",
 });
 function assetUrl(buildResult, predicate) {
@@ -74,6 +116,26 @@ function assetUrl(buildResult, predicate) {
   if (!match) throw new Error("Missing homepage asset");
   return "/school-home-assets/" + path.basename(match);
 }
+const pageAssets = Object.fromEntries(
+  Object.keys(pageControls).map((name) => [
+    name,
+    assetUrl(
+      browserBuild,
+      (file) => browserBuild.metafile.outputs[file].entryPoint === "page-control-entry:" + name,
+    ),
+  ]),
+);
+const staffBrowserBuild = await build({
+  entryPoints: ["lib/public-document/staff-entry.ts"],
+  bundle: true,
+  minify: true,
+  metafile: true,
+  format: "iife",
+  platform: "browser",
+  target: "es2020",
+  outdir: assetsDir,
+  entryNames: "staff-[hash]",
+});
 const assets = {
   css: assetUrl(cssBuild, (file) => file.endsWith(".css")),
   font: assetUrl(cssBuild, (file) => file.includes("manrope-latin-wght-normal-") && file.endsWith(".woff2")),
@@ -86,6 +148,7 @@ const assets = {
 // Only these boundaries hydrate. Editorial text, links and photos stay ordinary HTML.
 const islands = new Map(
   Object.entries({
+    ...Object.fromEntries(Object.entries(pageControls).map(([name, file]) => [file, name])),
     "components/site/site-header": "SiteHeader",
     "components/home/home-hero": "HomeHero",
     "components/home/management-carousel": "ManagementCarousel",
@@ -133,5 +196,45 @@ await build({
   target: "node22",
   outfile: path.join(generatedDir, "render.mjs"),
   plugins: [boundaries],
-  define: { ...common.define, HOME_ASSETS: JSON.stringify(assets) },
+  define: { ...common.define, HOME_ASSETS: JSON.stringify(assets), PAGE_ASSETS: JSON.stringify(pageAssets) },
+});
+
+// Keep data access in the Next.js server runtime. The browser build only imports interactive UI modules.
+const serverImports = {
+  name: "next-server-imports",
+  setup(api) {
+    api.onResolve({ filter: /^next\/navigation$/ }, (args) =>
+      args.importer.endsWith("server-navigation.ts")
+        ? { path: args.path, external: true }
+        : { path: path.resolve("lib/public-document/server-navigation.ts") },
+    );
+    api.onResolve(
+      { filter: /^(?:@\/lib\/(?:data\/public|server\/.*)|@\/convex\/.*|convex\/nextjs)$/ },
+      (args) => ({ path: args.path, external: true }),
+    );
+  },
+};
+await build({
+  ...common,
+  entryPoints: ["lib/public-document/render-page.tsx"],
+  format: "esm",
+  platform: "node",
+  target: "node22",
+  outfile: path.join(generatedDir, "public.mjs"),
+  plugins: [serverImports, publicEntries, boundaries],
+  define: { ...common.define, HOME_ASSETS: JSON.stringify(assets), PAGE_ASSETS: JSON.stringify(pageAssets) },
+});
+
+await build({
+  ...common,
+  entryPoints: ["lib/public-document/staff.tsx"],
+  format: "esm",
+  platform: "node",
+  target: "node22",
+  outfile: path.join(generatedDir, "staff.mjs"),
+  define: {
+    ...common.define,
+    HOME_ASSETS: JSON.stringify(assets),
+    STAFF_SCRIPT: JSON.stringify(assetUrl(staffBrowserBuild, (file) => file.endsWith(".js"))),
+  },
 });

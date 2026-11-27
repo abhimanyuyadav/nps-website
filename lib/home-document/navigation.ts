@@ -1,6 +1,4 @@
-export function usePathname() {
-  return "/";
-}
+export { useDocumentPath as usePathname } from "./path";
 
 const navigation = {
   push(path: string) {

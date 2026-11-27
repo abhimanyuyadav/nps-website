@@ -4,7 +4,6 @@ import { Eye, EyeOff, LoaderCircle, LockKeyhole, UserPlus } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState, type FormEvent } from "react";
-import { authClient } from "@/lib/auth/student-client";
 
 const fieldClass =
   "mt-2 min-h-12 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#2e3192] focus:ring-4 focus:ring-sky-100 aria-invalid:border-red-400 aria-invalid:ring-red-100";
@@ -51,6 +50,7 @@ export function StudentAuthForm({
 
     setSubmitting(true);
     try {
+      const { authClient } = await import("@/lib/auth/student-client");
       const registration = { name, email, password, termsAccepted: true };
       const result = register
         ? await authClient.signUp.email(registration)

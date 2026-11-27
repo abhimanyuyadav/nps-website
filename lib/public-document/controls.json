@@ -1,0 +1,9 @@
+{
+  "ContactForm": "components/forms/contact-form",
+  "AdmissionsForm": "components/forms/admissions-form",
+  "EventRegistrationForm": "components/forms/event-registration-form",
+  "SchoolResponseForm": "components/forms/school-response-form",
+  "TokenAction": "components/forms/token-action",
+  "StudentAuthForm": "components/student/student-auth-form",
+  "AssistantPanel": "components/assistant/assistant-panel"
+}

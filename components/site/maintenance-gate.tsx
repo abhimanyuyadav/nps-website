@@ -3,15 +3,7 @@
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
-const alwaysAvailable = new Set([
-  "/newsletter/confirm",
-  "/newsletter/unsubscribe",
-  "/events/cancel",
-  "/privacy",
-  "/terms",
-  "/accessibility",
-]);
-
+import { showsMaintenanceNotice } from "@/lib/content/maintenance-routes";
 export function MaintenanceGate({
   enabled,
   fallback,
@@ -22,5 +14,5 @@ export function MaintenanceGate({
   children: ReactNode;
 }) {
   const pathname = usePathname();
-  return enabled && !alwaysAvailable.has(pathname) ? fallback : children;
+  return showsMaintenanceNotice(enabled, pathname) ? fallback : children;
 }

@@ -1,3 +1,4 @@
+import publicDocumentRoutes from "./lib/public-document/routes.json";
 import type { NextConfig } from "next";
 
 const isProduction = process.env.NODE_ENV === "production";
@@ -67,6 +68,33 @@ const nextConfig: NextConfig = {
                 missing: [{ type: "header" as const, key: "rsc" }],
                 destination: "/school-home-document",
               },
+              {
+                source: "/sign-in",
+                missing: [
+                  { type: "header" as const, key: "rsc" },
+                  { type: "query" as const, key: "staff-ui" },
+                ],
+                destination: "/school-staff-sign-in",
+              },
+              ...publicDocumentRoutes
+                .filter(
+                  (route) =>
+                    !route.startsWith("/student/") ||
+                    Boolean(
+                      process.env.NEXT_PUBLIC_CONVEX_URL &&
+                      !process.env.NEXT_PUBLIC_CONVEX_URL.includes("your-deployment") &&
+                      process.env.NEXT_PUBLIC_CONVEX_SITE_URL &&
+                      !process.env.NEXT_PUBLIC_CONVEX_SITE_URL.includes("your-deployment"),
+                    ),
+                )
+                .map((pattern) => {
+                  const source = pattern.replace(/\[(\w+)\]/g, ":$1");
+                  return {
+                    source,
+                    missing: [{ type: "header" as const, key: "rsc" }],
+                    destination: "/school-pages" + source,
+                  };
+                }),
             ]
           : [],
       afterFiles: [],
@@ -100,7 +128,9 @@ const nextConfig: NextConfig = {
   },
   async redirects() {
     return [
+      { source: "/school-staff-sign-in", destination: "/sign-in", permanent: true },
       { source: "/school-home-document", destination: "/", permanent: true },
+      { source: "/school-pages/:parts*", destination: "/:parts*", permanent: true },
       { source: "/login", destination: "/sign-in", permanent: true },
       { source: "/forgot-password", destination: "/sign-in", permanent: true },
       { source: "/academics/faculty", destination: "/departments", permanent: true },

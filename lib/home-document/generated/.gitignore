@@ -1,3 +1,6 @@
 *
 !.gitignore
 !render.d.mts
+!public.d.mts
+
+!staff.d.mts

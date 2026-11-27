@@ -31,6 +31,9 @@ if (canObserve) {
     },
     { rootMargin: "480px 0px" },
   );
+  if (document.documentElement.classList.contains("school-inner-document")) {
+    for (const element of document.querySelectorAll<HTMLElement>("main .reveal")) observeReveal(element);
+  }
   for (const section of document.querySelectorAll(sectionBoundary)) sections.observe(section);
   // Keyboard users or a direct jump can reach a control before its intersection callback runs.
   const onInteraction = (event: Event) => {
