@@ -3,10 +3,10 @@ import "../home-document/safe-urls";
 import Link from "next/link";
 import { renderToString } from "preact-render-to-string";
 import { StaffSignInShell } from "@/components/site/staff-sign-in-shell";
-declare const HOME_ASSETS: { css: string; font: string };
+declare const STAFF_CSS: string;
 declare const STAFF_SCRIPT: string;
 export function renderStaffSignIn(
-  method: "choose" | "google" | "provider",
+  method: "choose" | "google" | "email" | "provider",
   domain: string | undefined,
   key: string | undefined,
   title: string,
@@ -26,9 +26,9 @@ export function renderStaffSignIn(
           />
           <title>{title}</title>
           <link rel="icon" href={icon} />
-          <link rel="preload" as="font" type="font/woff2" href={HOME_ASSETS.font} crossOrigin="anonymous" />
-          <link rel="stylesheet" href={HOME_ASSETS.css} />
-          {domain && method !== "choose" && (
+          <style dangerouslySetInnerHTML={{ __html: STAFF_CSS }} />
+          {domain && method === "email" && <script defer src={STAFF_SCRIPT} />}
+          {domain && (method === "google" || method === "provider") && (
             <>
               <link rel="preconnect" href={"https://" + domain} crossOrigin="anonymous" />
               <script
@@ -50,7 +50,7 @@ export function renderStaffSignIn(
           <a className="skip-link" href="#main-content">
             Skip to main content
           </a>
-          <StaffSignInShell configured={Boolean(domain)} compact={method === "choose"}>
+          <StaffSignInShell configured={Boolean(domain)} compact={method === "choose" || method === "email"}>
             {method === "choose" ? (
               <div className="w-full space-y-4">
                 <Link
@@ -63,7 +63,52 @@ export function renderStaffSignIn(
                   href="/sign-in?staff-method=email"
                   className="block rounded-xl border border-slate-300 px-4 py-3 text-center text-sm font-bold text-slate-800"
                 >
-                  Sign in with email or another method
+                  Sign in with email
+                </Link>
+              </div>
+            ) : method === "email" ? (
+              <div className="w-full space-y-4">
+                <form
+                  id="staff-email"
+                  method="post"
+                  data-domain={domain}
+                  data-key={key}
+                  className="space-y-3"
+                >
+                  <label htmlFor="staff-address" className="block text-sm font-bold">
+                    School email address
+                  </label>
+                  <input
+                    id="staff-address"
+                    type="email"
+                    required
+                    autoComplete="email"
+                    className="block w-full rounded-xl border border-slate-400 px-3 py-2"
+                  />
+                  <div id="staff-code-step" hidden>
+                    <label htmlFor="staff-code" className="block text-sm font-bold">
+                      Code from your email
+                    </label>
+                    <input
+                      id="staff-code"
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      disabled
+                      className="mt-2 block w-full rounded-xl border border-slate-400 px-3 py-2"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled
+                    className="w-full rounded-xl bg-[#2e3192] px-4 py-3 text-sm font-bold text-white"
+                  >
+                    Send a sign-in code
+                  </button>
+                  <p id="staff-status" role="status" className="text-sm text-slate-700" />
+                </form>
+                <Link href="/sign-in?staff-method=provider" className="block text-sm font-bold text-sky-700">
+                  Use a password, recover your account, or try another method
                 </Link>
               </div>
             ) : (

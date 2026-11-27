@@ -225,6 +225,16 @@ await build({
   define: { ...common.define, HOME_ASSETS: JSON.stringify(assets), PAGE_ASSETS: JSON.stringify(pageAssets) },
 });
 
+const staffCssFile = path.resolve("lib/public-document/staff.css");
+const staffCss = await postcss([tailwind({ base: root })]).process(await readFile(staffCssFile, "utf8"), {
+  from: staffCssFile,
+});
+const staffStyles = await build({
+  stdin: { contents: staffCss.css, loader: "css" },
+  write: false,
+  minify: true,
+});
+
 await build({
   ...common,
   entryPoints: ["lib/public-document/staff.tsx"],
@@ -234,7 +244,7 @@ await build({
   outfile: path.join(generatedDir, "staff.mjs"),
   define: {
     ...common.define,
-    HOME_ASSETS: JSON.stringify(assets),
+    STAFF_CSS: JSON.stringify(staffStyles.outputFiles[0].text),
     STAFF_SCRIPT: JSON.stringify(assetUrl(staffBrowserBuild, (file) => file.endsWith(".js"))),
   },
 });

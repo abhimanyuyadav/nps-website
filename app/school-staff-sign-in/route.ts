@@ -10,7 +10,9 @@ export async function GET(request: Request) {
   const domain =
     secret && !secret.includes("replace") && key ? parsePublishableKey(key)?.frontendApi : undefined;
   const params = new URL(request.url).searchParams;
-  const method = params.get("staff-method") === "google" ? "google" : params.size ? "provider" : "choose";
+  const selected = params.get("staff-method");
+  const method =
+    selected === "email" || selected === "google" ? selected : params.size ? "provider" : "choose";
   const html = renderStaffSignIn(
     method,
     domain,

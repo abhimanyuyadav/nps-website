@@ -1,0 +1,16 @@
+@import "tailwindcss" source(none);
+@source "./staff.tsx";
+@source "../../components/site/staff-sign-in-shell.tsx";
+
+@theme {
+  --color-sky-700: #2e3192;
+  --color-sky-900: #262873;
+}
+
+.skip-link:not(:focus) {
+  position: absolute;
+  clip-path: inset(50%);
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}

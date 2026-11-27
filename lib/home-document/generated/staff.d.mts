@@ -1,5 +1,5 @@
 export function renderStaffSignIn(
-  method: "choose" | "google" | "provider",
+  method: "choose" | "google" | "email" | "provider",
   domain: string | undefined,
   key: string | undefined,
   title: string,

@@ -1,3 +1,4 @@
+import { bindStaffEmailForm } from "./staff-email";
 // Clerk owns the sign-in form, the session, and every verification step.
 type StaffClerk = {
   isSignedIn: boolean;
@@ -45,4 +46,6 @@ async function mountStaffSignIn() {
     window.location.replace(fallback.href);
   }
 }
-void mountStaffSignIn();
+const emailForm = document.querySelector<HTMLFormElement>("#staff-email");
+if (emailForm) bindStaffEmailForm(emailForm);
+else void mountStaffSignIn();
