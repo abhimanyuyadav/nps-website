@@ -163,7 +163,6 @@ img {
   transition:
     opacity 760ms var(--ease-out-expo) var(--reveal-delay, 0ms),
     transform 760ms var(--ease-out-expo) var(--reveal-delay, 0ms);
-  will-change: opacity, transform;
 }
 
 .reveal[data-reveal="left"] {
@@ -185,7 +184,6 @@ img {
 .reveal[data-revealed="true"] {
   opacity: 1;
   transform: none;
-  will-change: auto;
 }
 
 @keyframes nps-fade-up {

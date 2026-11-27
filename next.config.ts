@@ -43,6 +43,8 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // School links are shared with readers that only inspect the HTML head.
+  htmlLimitedBots: /.*/,
   reactStrictMode: true,
   poweredByHeader: false,
   compress: true,
