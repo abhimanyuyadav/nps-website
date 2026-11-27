@@ -1,4 +1,5 @@
 "use client";
+import { useRecordPages } from "./use-record-access";
 
 import { useMutation, usePaginatedQuery } from "convex/react";
 import { Eye, EyeOff, LoaderCircle, Pencil, Plus, Trash2, X } from "lucide-react";
@@ -55,7 +56,7 @@ function GalleryItemsData() {
     results: albums,
     status: albumsStatus,
     loadMore: loadMoreAlbums,
-  } = usePaginatedQuery(adminApi.listContent, { type: "galleryAlbums" }, { initialNumItems: 50 });
+  } = useRecordPages(adminApi.listContent, { type: "galleryAlbums" }, { initialNumItems: 50 });
   const {
     results: media,
     status: mediaStatus,

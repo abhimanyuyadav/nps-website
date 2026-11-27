@@ -12,7 +12,7 @@ export default function PrivacyPage() {
       eyebrow="Website policy"
       title="Privacy notice"
       description="How information is collected, used, protected, and managed when you use this website."
-      updated="9 August 2026"
+      updated="28 November 2026"
       sections={[
         {
           title: "Information we collect",
@@ -20,8 +20,13 @@ export default function PrivacyPage() {
             <>
               <p>
                 We collect information you choose to provide through contact, admissions, newsletter, and
-                event forms. This may include names, contact details, student information, enquiry content,
-                and consent records.
+                event forms, and through forms created by school staff. This may include names, contact
+                details, student information, enquiry content, and consent records.
+              </p>
+              <p>
+                A school form records your email, answers, and a submission reference. New submissions also
+                record when you agreed to share your answers, which form revision you saw, and which agreement
+                you accepted. School administrators can review the responses.
               </p>
               <p>
                 The student publishing portal processes an account name, email address, secure session
@@ -53,12 +58,21 @@ export default function PrivacyPage() {
             <>
               <p>
                 The website uses configured infrastructure providers, including Convex for application data
-                and background processing. These providers process information under their own security and
-                privacy controls.
+                and background processing. Vercel hosts the site and Clerk handles staff sign-in. If the
+                school enables email delivery, Resend processes the address and message needed for delivery.
+                These providers process information under their own security and privacy controls.
               </p>
               <p>
-                If you use the AI assistant, your message and the minimum relevant website context may be sent
-                to Google&apos;s Gemini service to produce a response. Do not enter sensitive, confidential,
+                If you choose Record command, the school transcription service processes short audio clips in
+                memory. Live previews also send audio clips. If you use your browser’s built-in speech
+                recognition, your browser may use its own speech service. You can type a command instead.
+              </p>
+              <p>
+                If you use the AI assistant, your question, recent conversation context, and relevant school
+                information may be sent to Google&apos;s Gemini service to produce a response. The assistant
+                uses a browser cookie to recognize your conversation. It saves chat messages so it can
+                continue the conversation and authorized staff can review it. The school’s daily cleanup
+                removes expired chats after 30 days of inactivity. Do not enter sensitive, confidential,
                 financial, health, or identity information into the assistant.
               </p>
             </>
@@ -72,6 +86,11 @@ export default function PrivacyPage() {
                 Information is retained only as long as reasonably needed for the stated purpose, legal
                 obligations, security, or school administration. Access is restricted according to staff
                 roles, but no online service can guarantee absolute security.
+              </p>
+              <p>
+                School-form responses can remain available after a form closes. The school can set a time
+                limit for automatic removal. Ask the school office about the period for your form or to
+                request removal of your response.
               </p>
               <p>
                 Drafts and private moderation notes are not displayed publicly. When an article is approved,

@@ -66,6 +66,7 @@ const schema = z.union([nestedSchema, enquirySchema]);
 
 type AdmissionArgs = {
   fingerprint: string;
+  networkKey?: string;
   honeypot?: string;
   idempotencyKey: string;
   academicYear: string;
@@ -168,10 +169,11 @@ export async function POST(request: NextRequest) {
       if (!settings?.admissionsOpen)
         return formJson(session, { error: "Admissions are currently closed." }, { status: 409 });
     }
-    const args = normalizeAdmission(parsed.data, session.fingerprint);
+    const args = { ...normalizeAdmission(parsed.data, session.fingerprint), networkKey: session.networkKey };
     const signed = signPublicFormPayload(session.formServiceSecret, {
       form: "admission",
       fingerprint: args.fingerprint,
+      networkKey: args.networkKey,
       honeypot: null,
       idempotencyKey: args.idempotencyKey,
       academicYear: args.academicYear,

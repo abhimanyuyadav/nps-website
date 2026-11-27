@@ -1,7 +1,7 @@
 import { createHmac, randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { getPublicFormConfiguration } from "./form-configuration";
-import { getRequestIp, requestFingerprint } from "./request-security";
+import { getRequestIp, requestFingerprint, requestNetworkKey } from "./request-security";
 
 const FORM_SESSION_COOKIE = "nps_form_session";
 
@@ -17,6 +17,7 @@ export function preparePublicFormRequest(request: NextRequest) {
     convexUrl,
     existingSession,
     sessionId,
+    networkKey: requestNetworkKey(request, fingerprintSecret),
     fingerprint: requestFingerprint(request, `form:${sessionId}`, fingerprintSecret),
     formServiceSecret,
   };

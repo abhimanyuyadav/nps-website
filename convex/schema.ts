@@ -125,6 +125,7 @@ export default defineSchema({
     updatedAt: v.number(),
   }).index("by_status_updated", ["status", "updatedAt"]),
   schoolResponses: defineTable({
+    consent: v.optional(v.object({ at: v.number(), version: v.string(), formRevision: v.number() })),
     formId: v.id("schoolForms"),
     email: v.string(),
     answers: v.array(v.string()),
@@ -848,6 +849,7 @@ export default defineSchema({
 
   auditLogs: defineTable({
     actorId: v.optional(v.id("users")),
+    archiveReceipt: v.optional(v.string()),
     actorClerkId: v.optional(v.string()),
     action: v.string(),
     entityType: v.string(),
@@ -857,7 +859,9 @@ export default defineSchema({
     createdAt: v.number(),
   })
     .index("by_created_at", ["createdAt"])
+    .index("by_record_created", ["entityId", "createdAt"])
     .index("by_actor_created_at", ["actorId", "createdAt"])
+    .index("by_archive_receipt", ["actorId", "archiveReceipt"])
     .index("by_actor_id_and_entity_type_and_created_at", ["actorId", "entityType", "createdAt"])
     .index("by_entity_created_at", ["entityType", "createdAt"]),
 

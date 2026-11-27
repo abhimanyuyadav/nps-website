@@ -15,9 +15,11 @@ export function sameOrigin(request: Request) {
 export async function pendingCover(articleId: string, op: "read" | "write" | "clear", cover?: DraftCover) {
   const config = getPublicFormConfiguration();
   if (!config) throw new Error("Cover storage is unavailable.");
+  const sameDatabase =
+    config.convexUrl.replace(/\/+$/, "") === process.env.NEXT_PUBLIC_CONVEX_URL?.replace(/\/+$/, "");
   const input = {
     articleId,
-    op,
+    op: op === "write" && sameDatabase ? ("writeLocal" as const) : op,
     version: cover?.version ?? "",
     image: op === "write" ? cover!.image : "",
     alt: op === "write" ? cover!.alt : "",

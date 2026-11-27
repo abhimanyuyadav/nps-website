@@ -1,6 +1,6 @@
 import { convexTest } from "convex-test";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { api } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 import schema from "./schema";
 import { modules } from "./test.setup";
 
@@ -139,6 +139,39 @@ describe("first-administrator bootstrap", () => {
 });
 
 describe("independent school administrator access", () => {
+  it.each([true, false])("honors local suspensions and role changes on an issued bridge token (school issuer: %s)", async (hasSchoolIssuer) => {
+    vi.stubEnv("WORKFLOW_JWKS", "configured");
+    vi.stubEnv("SCHOOL_CLERK_ISSUER", hasSchoolIssuer ? "https://school.example.test" : undefined);
+    vi.stubEnv("CLERK_JWT_ISSUER_DOMAIN", "https://bridge.example.test");
+    try {
+      const t = convexTest(schema, modules);
+      const identity = {
+        issuer: "https://bridge.example.test",
+        subject: "delegated-staff",
+        email: "staff@example.test",
+      };
+      const caller = t.withIdentity({ ...identity, roles: ["admin", "editor"] });
+      const id = await caller.mutation(api.users.syncCurrent, {});
+      const expected = hasSchoolIssuer ? { status: "pending", roles: [] } : { status: "active", roles: ["admin", "editor"] };
+      expect(await caller.query(api.users.current, {})).toMatchObject(expected);
+
+      await t.run((ctx) => ctx.db.patch("users", id, { status: "active", roles: ["editor"] }));
+      await caller.mutation(api.users.syncCurrent, {});
+      expect(await caller.query(api.users.current, {})).toMatchObject({ status: "active", roles: ["editor"] });
+      const adminRead = () => caller.query(internal.admin.listUsers, { paginationOpts: { numItems: 1, cursor: null } });
+      await expect(adminRead()).rejects.toThrow("required");
+      const limited = t.withIdentity({ ...identity, roles: ["admissions"] });
+      expect(await limited.query(api.users.current, {})).toMatchObject({ roles: [], status: "pending" });
+
+      await t.run((ctx) => ctx.db.patch("users", id, { status: "suspended", roles: ["admin"] }));
+      await caller.mutation(api.users.syncCurrent, {});
+      expect(await caller.query(api.users.current, {})).toMatchObject({ status: "suspended", roles: [] });
+      await expect(adminRead()).rejects.toThrow("not active");
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it("checks the migrated roster and preserves a suspension during synchronization", async () => {
     vi.stubEnv("SCHOOL_CLERK_ISSUER", "https://school.example.test");
     vi.stubEnv("WORKFLOW_JWKS", "configured");
@@ -155,12 +188,12 @@ describe("independent school administrator access", () => {
         roles: [], status: "pending",
       });
       await t.run(async (ctx) => ctx.db.patch("users", id, { roles: ["admin"], status: "active" }));
-      await expect(caller.query(api.admin.listUsers, {
+      await expect(caller.query(internal.admin.listUsers, {
         paginationOpts: { numItems: 1, cursor: null },
       })).resolves.toBeDefined();
       await t.run(async (ctx) => ctx.db.patch("users", id, { roles: [], status: "suspended" }));
       await caller.mutation(api.users.syncCurrent, {});
-      await expect(caller.query(api.admin.listUsers, {
+      await expect(caller.query(internal.admin.listUsers, {
         paginationOpts: { numItems: 1, cursor: null },
       })).rejects.toThrow("not active");
     } finally {

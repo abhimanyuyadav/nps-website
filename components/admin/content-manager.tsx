@@ -1,4 +1,5 @@
 "use client";
+import { useRecordPages } from "./use-record-access";
 
 import { useMutation, usePaginatedQuery, useQuery } from "convex/react";
 import {
@@ -865,7 +866,7 @@ function CollectionManager({
     results,
     status: paginationStatus,
     loadMore,
-  } = usePaginatedQuery(
+  } = useRecordPages(
     adminApi.listContent,
     {
       type: definition.type,
@@ -1426,7 +1427,7 @@ function ReferenceEditorControl({
   onChange: (value: string) => void;
 }) {
   const referenceType = field.referenceType ?? "teachers";
-  const { results, status, loadMore } = usePaginatedQuery(
+  const { results, status, loadMore } = useRecordPages(
     adminApi.listContent,
     { type: referenceType, ...(field.referenceStatus ? { status: field.referenceStatus } : {}) },
     { initialNumItems: 100 },

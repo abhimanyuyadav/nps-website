@@ -42,12 +42,21 @@ function authorize(signature: string, requestTimestamp: number, canonical: strin
   }
 }
 
+export const authorizeVoice = action({
+  args: { requestTimestamp: v.number(), networkKey: v.string(), signature: v.string() },
+  returns: v.boolean(),
+  handler: async (ctx, { requestTimestamp, networkKey, signature }): Promise<boolean> => {
+    authorize(signature, requestTimestamp, JSON.stringify({ requestTimestamp, form: "voice-quota", networkKey }));
+    return ctx.runMutation(internal.forms.reserveVoiceCapacity, { networkKey });
+  },
+});
+
 export const articleCover = action({
   args: {
     signature: v.string(),
     requestTimestamp: v.number(),
     articleId: v.string(),
-    op: v.union(v.literal("read"), v.literal("write"), v.literal("clear")),
+    op: v.union(v.literal("read"), v.literal("write"), v.literal("writeLocal"), v.literal("clear")),
     version: v.string(),
     image: v.string(),
     alt: v.string(),
@@ -68,8 +77,10 @@ export const articleCover = action({
       }),
     );
     if (op === "read") return await ctx.runQuery(internal.articleCoverDrafts.read, { articleId });
-    if (op === "write")
-      await ctx.runMutation(internal.articleCoverDrafts.write, { articleId, version, image, alt });
+    if (op === "write" || op === "writeLocal")
+      await ctx.runMutation(internal.articleCoverDrafts.write, {
+        articleId, version, image, alt, verifyArticle: op === "writeLocal",
+      });
     else await ctx.runMutation(internal.articleCoverDrafts.clear, { articleId, version });
     return null;
   },
@@ -82,13 +93,15 @@ export const submitSchoolForm = action({
     id: v.string(),
     revision: v.number(),
     submissionId: v.string(),
+    networkKey: v.optional(v.string()),
+    consentVersion: v.optional(v.literal("share-answers-v1")),
     fingerprint: v.string(),
     email: v.string(),
     answers: v.array(v.string()),
   },
   handler: async (ctx, args): Promise<string> => {
     const { id, revision, submissionId, fingerprint, email, answers } = args;
-    const input = { id, revision, submissionId, fingerprint, email, answers };
+    const input = { id, revision, submissionId, fingerprint, email, answers, networkKey: args.networkKey, consentVersion: args.consentVersion };
     authorize(
       args.signature,
       args.requestTimestamp,
@@ -117,6 +130,7 @@ export const submitContact = action({
       requestTimestamp: args.requestTimestamp,
       form: "contact",
       fingerprint: args.fingerprint,
+      networkKey: args.networkKey,
       honeypot: args.honeypot ?? null,
       idempotencyKey: args.idempotencyKey,
       name: args.name,
@@ -153,6 +167,7 @@ export const submitAdmission = action({
       requestTimestamp: args.requestTimestamp,
       form: "admission",
       fingerprint: args.fingerprint,
+      networkKey: args.networkKey,
       honeypot: args.honeypot ?? null,
       idempotencyKey: args.idempotencyKey,
       academicYear: args.academicYear,
@@ -209,6 +224,7 @@ export const subscribeNewsletter = action({
       requestTimestamp: args.requestTimestamp,
       form: "newsletter",
       fingerprint: args.fingerprint,
+      networkKey: args.networkKey,
       honeypot: args.honeypot ?? null,
       idempotencyKey: args.idempotencyKey,
       email: args.email,
@@ -253,6 +269,7 @@ export const registerEvent = action({
       requestTimestamp: args.requestTimestamp,
       form: "event",
       fingerprint: args.fingerprint,
+      networkKey: args.networkKey,
       honeypot: args.honeypot ?? null,
       idempotencyKey: args.idempotencyKey,
       eventId: args.eventId,

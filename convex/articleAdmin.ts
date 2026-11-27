@@ -1,7 +1,7 @@
 import { paginationResultValidator } from "convex/server";
 import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
-import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
+import { internalQuery, mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import {
   adminArticleSummaryValidator,
   adminArticleValidator,
@@ -14,6 +14,7 @@ import {
   validateArticleForSubmission,
 } from "./lib/articles";
 import { writeAudit } from "./lib/audit";
+import { removePendingArticleCover } from "./lib/pendingArticleCover";
 import { requireRole } from "./lib/auth";
 import { optionalMediaUrl, plainText, singleLineText } from "./lib/input";
 import { recordDeleted, recordStatusChanged } from "./lib/metrics";
@@ -48,7 +49,7 @@ async function fullAdminArticle(ctx: QueryCtx | MutationCtx, article: Doc<"artic
   };
 }
 
-export const listArticles = query({
+export const listArticles = internalQuery({
   args: {
     paginationOpts: paginationOptsValidator,
     status: moderationStatusValidator,
@@ -73,7 +74,7 @@ export const listArticles = query({
   },
 });
 
-export const getArticle = query({
+export const getArticle = internalQuery({
   args: { id: v.id("articles") },
   returns: v.union(v.null(), adminArticleValidator),
   handler: async (ctx, args) => {
@@ -186,6 +187,7 @@ export const remove = mutation({
   handler: async (ctx, args) => {
     const actor = await requireRole(ctx, ADMIN_ONLY);
     const article = await editableRecord(ctx, args.id, args.expectedUpdatedAt);
+    await removePendingArticleCover(ctx, article._id);
     await ctx.db.delete("articles", article._id);
     await recordDeleted(ctx, "articles", article.status);
     await writeAudit(ctx, actor, {

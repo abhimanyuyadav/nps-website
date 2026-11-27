@@ -20,6 +20,18 @@ export function isClerkStaffIdentity(identity: UserIdentity): boolean {
   return normalizedIssuer(identity.issuer) === normalizedIssuer(configuredIssuer);
 }
 
+export function delegatedStaffRoles(identity: UserIdentity): StaffRole[] | null {
+  if (!process.env.WORKFLOW_JWKS || !isClerkStaffIdentity(identity)) return null;
+  const schoolIssuer = process.env.SCHOOL_CLERK_ISSUER;
+  if (schoolIssuer && normalizedIssuer(identity.issuer) === normalizedIssuer(schoolIssuer)) return null;
+  return Array.isArray(identity.roles)
+    ? identity.roles.filter(
+        (role): role is StaffRole =>
+          role === "admin" || role === "publisher" || role === "editor" || role === "admissions",
+      )
+    : [];
+}
+
 export async function requireClerkStaffIdentity(ctx: Pick<AuthContext, "auth">): Promise<UserIdentity> {
   const identity = await ctx.auth.getUserIdentity();
   if (!identity || !isClerkStaffIdentity(identity)) {
@@ -35,15 +47,12 @@ export async function currentUser(ctx: AuthContext): Promise<Doc<"users"> | null
     .query("users")
     .withIndex("by_clerk_user_id", (q) => q.eq("clerkUserId", identity.subject))
     .unique();
-  if (!profile || !process.env.WORKFLOW_JWKS) return profile;
-  const schoolIssuer = process.env.SCHOOL_CLERK_ISSUER;
-  if (schoolIssuer && normalizedIssuer(identity.issuer) === normalizedIssuer(schoolIssuer)) return profile;
-  const roles = Array.isArray(identity.roles)
-    ? identity.roles.filter(
-        (r): r is StaffRole => r === "admin" || r === "publisher" || r === "editor" || r === "admissions",
-      )
-    : [];
-  return { ...profile, roles, status: roles.length ? ("active" as const) : ("pending" as const) };
+  if (!profile) return null;
+  const delegated = delegatedStaffRoles(identity);
+  if (delegated === null) return profile;
+  const roles = profile.status === "active" ? profile.roles.filter((role) => delegated.includes(role)) : [];
+  const status = profile.status === "active" && !roles.length ? "pending" : profile.status;
+  return { ...profile, roles, status };
 }
 
 export async function requireUser(ctx: AuthContext): Promise<Doc<"users">> {

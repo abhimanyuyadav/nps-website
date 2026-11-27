@@ -14,7 +14,7 @@ async function reviewer(id: string) {
   client.setAuth(token);
   const staff = await client.query(api.users.current, {});
   if (staff?.status !== "active" || !staff.roles.includes("admin")) return null;
-  const article = await client.query(api.articleAdmin.getArticle, { id: id as Id<"articles"> });
+  const article = await client.mutation(api.recordAccess.read, { source: "articleAdmin:getArticle", params: { id: id as Id<"articles"> } });
   return article ? { client, article } : null;
 }
 export async function GET(_: Request, { params }: Context) {

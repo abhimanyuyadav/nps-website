@@ -9,6 +9,12 @@ export function getRequestIp(request: NextRequest) {
   return address && isIP(address) ? address : null;
 }
 
+// Shared networks get a separate, looser quota. Browser identifiers never enter this key.
+export function requestNetworkKey(request: NextRequest, secret: string): string {
+  const address = getRequestIp(request) ?? "unattributed";
+  return createHmac("sha256", secret).update("school-network-v1:" + address).digest("hex");
+}
+
 export function requestFingerprint(request: NextRequest, sessionId: string, secret: string) {
   const input = [
     getRequestIp(request) ?? "unknown",

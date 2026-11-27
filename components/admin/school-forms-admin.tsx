@@ -1,4 +1,6 @@
 "use client";
+import { useRecordPages } from "./use-record-access";
+import { makeFunctionReference, type PaginationOptions, type PaginationResult } from "convex/server";
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useMutation, usePaginatedQuery, useQuery } from "convex/react";
@@ -139,9 +141,10 @@ function Editor({ form, done }: { form?: Doc<"schoolForms">; done: (id: Id<"scho
   );
 }
 
+const formResponseList = makeFunctionReference<"query", { id: Id<"schoolForms">; paginationOpts: PaginationOptions }, PaginationResult<Doc<"schoolResponses">>>("schoolForms:responses");
 function Responses({ form }: { form: Doc<"schoolForms"> }) {
-  const { results, status, loadMore } = usePaginatedQuery(
-    api.schoolForms.responses,
+  const { results, status, loadMore } = useRecordPages(
+    formResponseList,
     { id: form._id },
     { initialNumItems: 20 },
   );

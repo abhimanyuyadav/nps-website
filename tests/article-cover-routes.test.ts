@@ -55,14 +55,16 @@ beforeEach(() => {
           )
           .digest("hex"),
       );
-      if (op === "write") row = { image, alt, version };
+      if (op === "writeLocal" || op === "write") row = { image, alt, version };
       if (op === "clear" && row?.version === version) row = null;
       return op === "read" ? row : null;
     },
   );
-  mocks.mutate.mockImplementation(async (ref) =>
-    getFunctionName(ref) === "media:generateUploadUrl" ? "https://upload.example" : null,
-  );
+  mocks.mutate.mockImplementation(async (ref) => {
+    if (getFunctionName(ref) === "recordAccess:read")
+      return { _id: id, status: "submitted", category: "Student life", seo: {}, featured: false };
+    return getFunctionName(ref) === "media:generateUploadUrl" ? "https://upload.example" : null;
+  });
 });
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -85,7 +87,7 @@ it("accepts the author's photo, presents the same private preview and applies th
   const candidate = await saved.json();
   expect((await sharp(Buffer.from(candidate.image, "base64")).metadata()).format).toBe("webp");
   expect(await (await review(new Request(url), context)).json()).toEqual(candidate);
-  expect(mocks.mutate).not.toHaveBeenCalled();
+  expect(mocks.mutate.mock.calls.map(([ref]) => getFunctionName(ref))).toEqual(["recordAccess:read"]);
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({ storageId: "storage-id" })));
   const approve = (version: string) =>
     publish(
@@ -98,12 +100,13 @@ it("accepts the author's photo, presents the same private preview and applies th
     );
   expect((await approve("old-version")).status).toBe(409);
   expect((await approve(candidate.version)).status).toBe(200);
-  expect(mocks.mutate.mock.calls.map(([ref]) => getFunctionName(ref))).toEqual([
+  const writes = mocks.mutate.mock.calls.filter(([ref]) => getFunctionName(ref) !== "recordAccess:read");
+  expect(writes.map(([ref]) => getFunctionName(ref))).toEqual([
     "media:generateUploadUrl",
     "media:finalizeUpload",
     "articleAdmin:updateEditorial",
   ]);
-  expect(mocks.mutate.mock.calls[2][1].editorial).toMatchObject({
+  expect(writes[2][1].editorial).toMatchObject({
     featuredImageId: "storage-id",
     featuredImageAlt: candidate.alt,
   });

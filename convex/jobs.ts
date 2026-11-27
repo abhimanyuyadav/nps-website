@@ -986,6 +986,7 @@ const retentionPhaseValidator = v.union(
   v.literal("declinedAdmissions"),
   v.literal("withdrawnAdmissions"),
   v.literal("eventRegistrations"),
+  v.literal("schoolResponses"),
   v.literal("succeededJobs"),
   v.literal("cancelledJobs"),
   v.literal("deadJobs"),
@@ -1005,6 +1006,7 @@ type RetentionPhase =
   | "declinedAdmissions"
   | "withdrawnAdmissions"
   | "eventRegistrations"
+  | "schoolResponses"
   | "succeededJobs"
   | "cancelledJobs"
   | "deadJobs";
@@ -1023,6 +1025,7 @@ const RETENTION_PHASES: readonly RetentionPhase[] = [
   "declinedAdmissions",
   "withdrawnAdmissions",
   "eventRegistrations",
+  "schoolResponses",
   "succeededJobs",
   "cancelledJobs",
   "deadJobs",
@@ -1031,6 +1034,7 @@ const RETENTION_PHASES: readonly RetentionPhase[] = [
 const RETENTION_BATCH_SIZE = 50;
 const AI_MESSAGE_RETENTION_BATCH_SIZE = 40;
 const REGISTRATION_RETENTION_BATCH_SIZE = 40;
+const SCHOOL_RESPONSE_RETENTION_BATCH_SIZE = 10;
 
 function nextRetentionPhase(phase: RetentionPhase): RetentionPhase | null {
   const index = RETENTION_PHASES.indexOf(phase);
@@ -1222,6 +1226,28 @@ export const cleanupRetention = internalMutation({
         if (next) await schedule(next);
       }
       return { deleted };
+    }
+
+    if (phase === "schoolResponses") {
+      const setting = process.env.SCHOOL_RESPONSE_RETENTION_DAYS?.trim() ?? "";
+      const days = Number(setting);
+      if (!/^[1-9]\d*$/.test(setting) || !Number.isSafeInteger(days)) return await finishBatch(false);
+      const cutoff = now - days * 86_400_000;
+      const rows = await ctx.db
+        .query("schoolResponses")
+        .withIndex("by_creation_time", (q) => q.lt("_creationTime", cutoff))
+        .order("asc")
+        .take(SCHOOL_RESPONSE_RETENTION_BATCH_SIZE);
+      for (const row of rows) await remove("schoolResponses", row._id);
+      if (rows.length) {
+        await writeAudit(ctx, null, {
+          action: "retention.sensitive_records_deleted",
+          entityType: "retention",
+          summary: `Retention cleanup deleted ${rows.length} school form responses.`,
+          metadata: { schoolResponses: String(rows.length), retentionDays: setting },
+        });
+      }
+      return await finishBatch(rows.length === SCHOOL_RESPONSE_RETENTION_BATCH_SIZE);
     }
 
     if (phase === "succeededJobs" || phase === "cancelledJobs" || phase === "deadJobs") {

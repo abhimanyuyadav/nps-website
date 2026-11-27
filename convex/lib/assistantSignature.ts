@@ -6,6 +6,7 @@ export type AssistantHistoryEntry = {
 export type AssistantSignatureInput = {
   requestTimestamp: number;
   fingerprint: string;
+  networkKey?: string;
   sessionId: string;
   message: string;
   history?: AssistantHistoryEntry[];
@@ -21,6 +22,7 @@ export function normalizeAssistantServiceSecret(value: string | undefined): stri
 export function canonicalAssistantSignaturePayload(input: AssistantSignatureInput): string {
   return JSON.stringify([
     ASSISTANT_SIGNATURE_VERSION,
+    ...(input.networkKey === undefined ? [] : [input.networkKey]),
     input.requestTimestamp,
     input.fingerprint,
     input.sessionId,

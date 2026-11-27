@@ -6,6 +6,7 @@ import DepartmentsPage from "@/app/(site)/departments/page";
 
 const m = vi.hoisted(() => ({ save: vi.fn(), upload: vi.fn(), pages: vi.fn(), getCmsPage: vi.fn() }));
 vi.mock("convex/server", () => ({ makeFunctionReference: (name: string) => name }));
+vi.mock("@/components/admin/use-record-access", () => ({ useRecordPages: () => ({ results: m.pages(), status: "Exhausted" }) }));
 vi.mock("convex/react", () => ({
   useMutation: () => m.save,
   useQuery: () => undefined,

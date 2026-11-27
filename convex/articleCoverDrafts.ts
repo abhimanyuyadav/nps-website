@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { internalQuery, internalMutation } from "./_generated/server";
 export const read = internalQuery({
   args: { articleId: v.string() },
@@ -11,8 +11,20 @@ export const read = internalQuery({
   },
 });
 export const write = internalMutation({
-  args: { articleId: v.string(), image: v.string(), alt: v.string(), version: v.string() },
-  handler: async (ctx, data) => {
+  args: {
+    articleId: v.string(),
+    image: v.string(),
+    alt: v.string(),
+    version: v.string(),
+    verifyArticle: v.optional(v.boolean()),
+  },
+  handler: async (ctx, { verifyArticle, ...data }) => {
+    if (verifyArticle) {
+      const id = ctx.db.normalizeId("articles", data.articleId);
+      const article = id && (await ctx.db.get("articles", id));
+      if (!article || (article.status !== "draft" && article.status !== "rejected"))
+        throw new ConvexError("Only an existing editable article can receive a pending cover.");
+    }
     const old = await ctx.db
       .query("articleCoverDrafts")
       .withIndex("by_article", (q) => q.eq("articleId", data.articleId))

@@ -1,4 +1,5 @@
 "use client";
+import { useRecordPages } from "./use-record-access";
 
 import Link from "next/link";
 import { useMutation, usePaginatedQuery } from "convex/react";
@@ -21,7 +22,7 @@ export function DepartmentsBanner() {
 }
 
 function BannerEditor() {
-  const { results, status, loadMore } = usePaginatedQuery(
+  const { results, status, loadMore } = useRecordPages(
     adminApi.listContent,
     { type: "pages" },
     { initialNumItems: 50 },

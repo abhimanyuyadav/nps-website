@@ -1,6 +1,6 @@
 import { ConvexError, v, type Infer } from "convex/values";
 import { paginationResultValidator } from "convex/server";
-import { mutation, query } from "./_generated/server";
+import { internalQuery, mutation, query } from "./_generated/server";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
@@ -400,6 +400,7 @@ const userDocumentValidator = v.object({
 });
 
 const auditLogValidator = v.object({
+  archiveReceipt: v.optional(v.string()),
   _id: v.id("auditLogs"),
   _creationTime: v.number(),
   actorId: v.optional(v.id("users")),
@@ -512,8 +513,8 @@ const dashboardValidator = v.object({
   }),
   jobs: v.object({ total: v.number(), queued: v.number(), failed: v.number() }),
   recent: v.object({
-    contacts: v.array(contactSubmissionValidator),
-    admissions: v.array(admissionSubmissionValidator),
+    contacts: v.array(v.object({ _id: v.id("contacts"), summary: v.string(), createdAt: v.number() })),
+    admissions: v.array(v.object({ _id: v.id("admissions"), summary: v.string(), createdAt: v.number() })),
     audit: v.array(auditLogValidator),
   }),
 });
@@ -1171,15 +1172,15 @@ export const dashboard = query({
         failed: isAdmin ? count("jobs:status:dead") : 0,
       },
       recent: {
-        contacts: recentContacts.map((row) => safeSubmission("contacts", row)),
-        admissions: recentAdmissions.map((row) => safeSubmission("admissions", row)),
+        contacts: recentContacts.map((row) => ({ _id: row._id, summary: row.ticketNumber, createdAt: row.createdAt })),
+        admissions: recentAdmissions.map((row) => ({ _id: row._id, summary: row.applicationNumber, createdAt: row.submittedAt })),
         audit: recentAudit,
       },
     };
   },
 });
 
-export const listContent = query({
+export const listContent = internalQuery({
   args: {
     type: contentTypeValidator,
     paginationOpts: paginationOptsValidator,
@@ -1433,7 +1434,7 @@ export const removeContent = mutation({
   },
 });
 
-export const listSubmissions = query({
+export const listSubmissions = internalQuery({
   args: {
     type: submissionTypeValidator,
     paginationOpts: paginationOptsValidator,
@@ -1495,7 +1496,7 @@ export const listSubmissions = query({
   },
 });
 
-export const getSubmission = query({
+export const getSubmission = internalQuery({
   args: { type: submissionTypeValidator, id: v.string() },
   returns: v.union(v.null(), submissionOutputValidator),
   handler: async (ctx, args) => {
@@ -1647,7 +1648,7 @@ export const updateSubmission = mutation({
   },
 });
 
-export const listSubscribers = query({
+export const listSubscribers = internalQuery({
   args: {
     paginationOpts: paginationOptsValidator,
     status: v.optional(newsletterSubscriberStatusValidator),
@@ -1965,7 +1966,7 @@ export const cancelNewsletterCampaign = mutation({
   },
 });
 
-export const listAiConversations = query({
+export const listAiConversations = internalQuery({
   args: {
     paginationOpts: paginationOptsValidator,
     status: v.optional(v.union(v.literal("active"), v.literal("closed"))),
@@ -1986,7 +1987,7 @@ export const listAiConversations = query({
   },
 });
 
-export const getAiConversation = query({
+export const getAiConversation = internalQuery({
   args: { conversationId: v.id("aiConversations") },
   returns: v.union(
     v.null(),
@@ -2030,7 +2031,7 @@ export const closeAiConversation = mutation({
   },
 });
 
-export const listUsers = query({
+export const listUsers = internalQuery({
   args: { paginationOpts: paginationOptsValidator, status: v.optional(userStatusValidator) },
   returns: paginationResultValidator(userDocumentValidator),
   handler: async (ctx, args) => {
@@ -2041,6 +2042,15 @@ export const listUsers = query({
           .withIndex("by_status", (q) => q.eq("status", args.status!))
           .paginate(boundedPaginationOpts(args.paginationOpts))
       : await ctx.db.query("users").order("desc").paginate(boundedPaginationOpts(args.paginationOpts));
+  },
+});
+
+export const getStaffRecord = internalQuery({
+  args: { id: v.id("users") },
+  returns: v.union(v.null(), userDocumentValidator),
+  handler: async (ctx, {id}) => {
+    await requireRole(ctx, ["admin"]);
+    return ctx.db.get("users", id);
   },
 });
 
@@ -2147,10 +2157,16 @@ export const listAuditLogs = query({
     paginationOpts: paginationOptsValidator,
     entityType: v.optional(v.string()),
     actorId: v.optional(v.id("users")),
+    recordId: v.optional(v.string()),
   },
   returns: paginationResultValidator(auditLogValidator),
   handler: async (ctx, args) => {
     await requireRole(ctx, ["admin"]);
+    if (args.recordId) {
+      let entries = ctx.db.query("auditLogs").withIndex("by_record_created", q => q.eq("entityId", args.recordId!)).order("desc");
+      if (args.actorId) entries = entries.filter(q => q.eq(q.field("actorId"), args.actorId));
+      return entries.paginate(boundedPaginationOpts(args.paginationOpts));
+    }
     if (args.actorId && args.entityType) {
       return await ctx.db
         .query("auditLogs")

@@ -9,6 +9,7 @@
  */
 
 import type * as admin from "../admin.js";
+import type * as archiveAccess from "../archiveAccess.js";
 import type * as articleAdmin from "../articleAdmin.js";
 import type * as articleCoverDrafts from "../articleCoverDrafts.js";
 import type * as articles from "../articles.js";
@@ -33,6 +34,7 @@ import type * as lib_input from "../lib/input.js";
 import type * as lib_jobs from "../lib/jobs.js";
 import type * as lib_metrics from "../lib/metrics.js";
 import type * as lib_newsletter from "../lib/newsletter.js";
+import type * as lib_pendingArticleCover from "../lib/pendingArticleCover.js";
 import type * as lib_rateLimit from "../lib/rateLimit.js";
 import type * as lib_schoolContent from "../lib/schoolContent.js";
 import type * as lib_schoolFormFields from "../lib/schoolFormFields.js";
@@ -40,6 +42,7 @@ import type * as lib_secrets from "../lib/secrets.js";
 import type * as lib_studentAuth from "../lib/studentAuth.js";
 import type * as lib_validators from "../lib/validators.js";
 import type * as media from "../media.js";
+import type * as recordAccess from "../recordAccess.js";
 import type * as schoolForms from "../schoolForms.js";
 import type * as seed from "../seed.js";
 import type * as studentProfiles from "../studentProfiles.js";
@@ -54,6 +57,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   admin: typeof admin;
+  archiveAccess: typeof archiveAccess;
   articleAdmin: typeof articleAdmin;
   articleCoverDrafts: typeof articleCoverDrafts;
   articles: typeof articles;
@@ -78,6 +82,7 @@ declare const fullApi: ApiFromModules<{
   "lib/jobs": typeof lib_jobs;
   "lib/metrics": typeof lib_metrics;
   "lib/newsletter": typeof lib_newsletter;
+  "lib/pendingArticleCover": typeof lib_pendingArticleCover;
   "lib/rateLimit": typeof lib_rateLimit;
   "lib/schoolContent": typeof lib_schoolContent;
   "lib/schoolFormFields": typeof lib_schoolFormFields;
@@ -85,6 +90,7 @@ declare const fullApi: ApiFromModules<{
   "lib/studentAuth": typeof lib_studentAuth;
   "lib/validators": typeof lib_validators;
   media: typeof media;
+  recordAccess: typeof recordAccess;
   schoolForms: typeof schoolForms;
   seed: typeof seed;
   studentProfiles: typeof studentProfiles;

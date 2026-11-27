@@ -3,7 +3,7 @@ import { ConvexError, v } from "convex/values";
 import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
 import { field, formState } from "./lib/schoolFormFields";
 import { requireRole } from "./lib/auth";
-import { enforceRateLimit } from "./lib/rateLimit";
+import { enforceRateLimit, protectSharedNetwork } from "./lib/rateLimit";
 import { normalizedEmail, referenceNumber, shortHash } from "./lib/input";
 import { enqueueJob } from "./lib/jobs";
 
@@ -36,7 +36,7 @@ export const staffList = query({
     return ctx.db.query("schoolForms").order("desc").paginate(paginationOpts);
   },
 });
-export const responses = query({
+export const responses = internalQuery({
   args: { id: v.id("schoolForms"), paginationOpts: paginationOptsValidator },
   handler: async (ctx, { id, paginationOpts }) => {
     await requireRole(ctx, ["admin"]);
@@ -111,6 +111,8 @@ export const record = internalMutation({
     id: v.string(),
     revision: v.number(),
     submissionId: v.string(),
+    networkKey: v.optional(v.string()),
+    consentVersion: v.optional(v.literal("share-answers-v1")),
     fingerprint: v.string(),
     email: v.string(),
     answers: v.array(v.string()),
@@ -149,6 +151,7 @@ export const record = internalMutation({
         invalid("Enter a valid date.");
       return a;
     });
+    await protectSharedNetwork(ctx, args.networkKey, "forms");
     for (const [scope, key] of [
       ["visitor", args.fingerprint],
       ["email", shortHash(email)],
@@ -157,6 +160,7 @@ export const record = internalMutation({
     const reference = referenceNumber("NPS-F", Date.now(), args.submissionId);
     const id = await ctx.db.insert("schoolResponses", {
       formId: form._id,
+      ...(args.consentVersion ? { consent: { at: Date.now(), version: args.consentVersion, formRevision: form.revision } } : {}),
       email,
       answers,
       reference,

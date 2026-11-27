@@ -1,4 +1,5 @@
 "use client";
+import { useRecordPages, useRecordDetail } from "./use-record-access";
 
 import { useMutation, usePaginatedQuery, useQuery } from "convex/react";
 import {
@@ -56,14 +57,14 @@ function ArticleReviewData() {
     results,
     status: paginationStatus,
     loadMore,
-  } = usePaginatedQuery(
+  } = useRecordPages(
     articleAdminApi.listArticles,
     { status: filter },
     {
       initialNumItems: 40,
     },
   );
-  const selectedArticle = useQuery(articleAdminApi.getArticle, selectedId ? { id: selectedId } : "skip");
+  const selectedArticle = useRecordDetail(articleAdminApi.getArticle, selectedId ? { id: selectedId } : "skip");
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
     if (!needle) return results;

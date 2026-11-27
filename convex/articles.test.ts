@@ -1,7 +1,7 @@
 import betterAuthTest from "@convex-dev/better-auth/test";
 import { convexTest } from "convex-test";
 import { beforeEach, describe, expect, it } from "vitest";
-import { api, components } from "./_generated/api";
+import { api, components, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import schema from "./schema";
 import { modules } from "./test.setup";
@@ -115,7 +115,7 @@ describe("student article publishing", () => {
         }),
       ).rejects.toThrow(/not found/i);
 
-      const privateDetail = await admin.query(api.articleAdmin.getArticle, { id: draft._id });
+      const privateDetail = await admin.query(internal.articleAdmin.getArticle, { id: draft._id });
       expect(privateDetail).toBeNull();
       const publicBeforeReview = await t.query(api.articles.listPublished, {
         paginationOpts: { numItems: 20, cursor: null },
@@ -124,7 +124,7 @@ describe("student article publishing", () => {
 
       const submitted = await student.mutation(api.articles.submitForReview, { articleId: draft._id });
       expect(submitted.status).toBe("submitted");
-      const queue = await admin.query(api.articleAdmin.listArticles, {
+      const queue = await admin.query(internal.articleAdmin.listArticles, {
         status: "submitted",
         paginationOpts: { numItems: 20, cursor: null },
       });
@@ -167,7 +167,7 @@ describe("student article publishing", () => {
     const id = draft._id;
     await student.mutation(api.articles.submitForReview, { articleId: id });
     await admin.mutation(api.articleAdmin.approve, { id });
-    const published = (await admin.query(api.articleAdmin.getArticle, { id }))!;
+    const published = (await admin.query(internal.articleAdmin.getArticle, { id }))!;
     const content = { ...draftInput, title: "A revised story about community service" };
     const edit = { id, expectedUpdatedAt: published.updatedAt, content };
     await expect(other.mutation(api.articleAdmin.editContent, edit)).rejects.toThrow();
@@ -177,16 +177,37 @@ describe("student article publishing", () => {
     await admin.mutation(api.articleAdmin.archive, { id });
     expect(await t.query(api.articles.getPublished, { slug: published.slug! })).toBeNull();
     await admin.mutation(api.articleAdmin.approve, { id });
-    const edited = (await admin.query(api.articleAdmin.getArticle, { id }))!;
+    const edited = (await admin.query(internal.articleAdmin.getArticle, { id }))!;
     const deletion = { id, expectedUpdatedAt: edited.updatedAt };
+    const proposal = { image: "test-bytes", alt: "School activity", version: "test-revision" };
+    await t.run(async (ctx) => ctx.db.insert("articleCoverDrafts", { articleId: id, ...proposal }));
     await expect(other.mutation(api.articleAdmin.remove, deletion)).rejects.toThrow();
+    expect(await t.query(internal.articleCoverDrafts.read, { articleId: id })).toEqual(proposal);
     await admin.mutation(api.articleAdmin.remove, deletion);
+    expect(await t.query(internal.articleCoverDrafts.read, { articleId: id })).toBeNull();
     expect(await t.query(api.articles.getPublished, { slug: published.slug! })).toBeNull();
     expect(
       (await t.query(api.articles.listPublished, { paginationOpts: { numItems: 10, cursor: null } })).page,
     ).toHaveLength(0);
     expect(await student.query(api.articles.getMine, { articleId: id })).toBeNull();
   });
+  it("deletes only the draft's pending cover and rejects a late upload after deletion", async () => {
+    const t = setup();
+    const { client: student } = await studentIdentity(t, "cover@example.test", "Student");
+    const first = await student.mutation(api.articles.saveDraft, { article: draftInput });
+    const second = await student.mutation(api.articles.saveDraft, { article: draftInput });
+    const proposal = { image: "test-bytes", alt: "Club project", version: "test-revision" };
+    for (const articleId of [first._id, second._id]) {
+      await t.mutation(internal.articleCoverDrafts.write, { articleId, ...proposal, verifyArticle: true });
+    }
+    await student.mutation(api.articles.deleteDraft, { articleId: first._id });
+    await expect(t.mutation(internal.articleCoverDrafts.write, {
+      articleId: first._id, ...proposal, verifyArticle: true,
+    })).rejects.toThrow("existing editable article");
+    expect(await t.query(internal.articleCoverDrafts.read, { articleId: first._id })).toBeNull();
+    expect(await t.query(internal.articleCoverDrafts.read, { articleId: second._id })).toEqual(proposal);
+  });
+
   it("refuses to publish an article owned by a suspended student", { timeout: 15_000 }, async () => {
     const t = setup();
     const { client: student } = await studentIdentity(t, "suspended@example.com", "Suspended Writer");
@@ -259,7 +280,7 @@ describe("student article publishing", () => {
         },
       });
       expect(revised.status).toBe("draft");
-      expect(await admin.query(api.articleAdmin.getArticle, { id: draft._id })).toBeNull();
+      expect(await admin.query(internal.articleAdmin.getArticle, { id: draft._id })).toBeNull();
 
       const resubmitted = await student.mutation(api.articles.submitForReview, { articleId: draft._id });
       expect(resubmitted.status).toBe("submitted");
@@ -273,12 +294,12 @@ describe("student article publishing", () => {
     const admin = await staffIdentity(t, "admin");
     const draft = await student.mutation(api.articles.saveDraft, { article: draftInput });
     await student.mutation(api.articles.submitForReview, { articleId: draft._id });
-    expect(await admin.query(api.articleAdmin.getArticle, { id: draft._id })).not.toBeNull();
+    expect(await admin.query(internal.articleAdmin.getArticle, { id: draft._id })).not.toBeNull();
 
     const withdrawn = await student.mutation(api.articles.withdrawSubmission, { articleId: draft._id });
     expect(withdrawn.status).toBe("draft");
-    expect(await admin.query(api.articleAdmin.getArticle, { id: draft._id })).toBeNull();
-    const queue = await admin.query(api.articleAdmin.listArticles, {
+    expect(await admin.query(internal.articleAdmin.getArticle, { id: draft._id })).toBeNull();
+    const queue = await admin.query(internal.articleAdmin.listArticles, {
       status: "submitted",
       paginationOpts: { numItems: 20, cursor: null },
     });
@@ -322,7 +343,7 @@ describe("student article publishing", () => {
       await staffIdentity(t, "admin", authUserId);
 
       await expect(
-        student.query(api.articleAdmin.listArticles, {
+        student.query(internal.articleAdmin.listArticles, {
           status: "submitted",
           paginationOpts: { numItems: 20, cursor: null },
         }),

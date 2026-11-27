@@ -8,6 +8,7 @@ export async function writeAudit(
     action: string;
     entityType: string;
     entityId?: string;
+    archiveReceipt?: string;
     summary: string;
     metadata?: Record<string, string>;
   },

@@ -34,7 +34,16 @@ export async function POST(request: NextRequest) {
   if (looksLikeBot(website)) return formJson(session, { message: "Submission received." }, { status: 201 });
   if (!(await verifyTurnstile(captchaToken, request, "school-form")))
     return formJson(session, { error: "Please complete the security check." }, { status: 400 });
-  const input = { id, revision, submissionId, fingerprint: session.fingerprint, email, answers };
+  const input = {
+    id,
+    revision,
+    submissionId,
+    fingerprint: session.fingerprint,
+    email,
+    answers,
+    networkKey: session.networkKey,
+    consentVersion: "share-answers-v1" as const,
+  };
   const signed = signPublicFormPayload(session.formServiceSecret, { form: "school-form", ...input });
   try {
     const reference = await fetchAction(

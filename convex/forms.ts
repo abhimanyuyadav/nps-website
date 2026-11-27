@@ -13,7 +13,7 @@ import {
   shortHash,
   singleLineText,
 } from "./lib/input";
-import { enforceRateLimit } from "./lib/rateLimit";
+import { enforceRateLimit, protectSharedNetwork } from "./lib/rateLimit";
 import { guardianValidator, publicRequestFields, studentValidator } from "./lib/validators";
 import { writeAudit } from "./lib/audit";
 import { recordCreated, recordStatusChanged } from "./lib/metrics";
@@ -21,6 +21,24 @@ import { recordCreated, recordStatusChanged } from "./lib/metrics";
 const successWithTicket = v.object({ ok: v.boolean(), ticketNumber: v.string() });
 const successWithApplication = v.object({ ok: v.boolean(), applicationNumber: v.string() });
 const CAPACITY_RECONCILIATION_LIMIT = 1_000;
+
+export const reserveVoiceCapacity = internalMutation({
+  args: { networkKey: v.string() },
+  returns: v.boolean(),
+  handler: async (ctx, { networkKey }) => {
+    if (!/^[0-9a-f]{64}$/.test(networkKey)) throw new ConvexError("Invalid network identifier.");
+    const windowMs = 10 * 60 * 1000;
+    try {
+      // One recording can issue a preparation request, several live previews and a final request.
+      await enforceRateLimit(ctx, { scope: "voice:network", key: networkKey, limit: 120, windowMs });
+      await enforceRateLimit(ctx, { scope: "voice:service", key: "all", limit: 1200, windowMs });
+      return true;
+    } catch (error) {
+      if (error instanceof ConvexError && error.data?.code === "RATE_LIMITED") return false;
+      throw error;
+    }
+  },
+});
 
 export const submitContact = internalMutation({
   args: {
@@ -43,6 +61,7 @@ export const submitContact = internalMutation({
       .unique();
     if (existing) return { ok: true, ticketNumber: existing.ticketNumber };
 
+    await protectSharedNetwork(ctx, args.networkKey, "forms");
     const fingerprint = safeKey(args.fingerprint, "fingerprint");
     const email = normalizedEmail(args.email);
     await enforceRateLimit(ctx, {
@@ -134,6 +153,7 @@ export const submitAdmission = internalMutation({
       throw new ConvexError({ code: "CONSENT_REQUIRED", message: "Consent is required." });
     }
 
+    await protectSharedNetwork(ctx, args.networkKey, "forms");
     const fingerprint = safeKey(args.fingerprint, "fingerprint");
     const email = normalizedEmail(args.guardian.email);
     await enforceRateLimit(ctx, {
@@ -255,6 +275,7 @@ export const subscribeNewsletter = internalMutation({
     ) {
       return { ok: true, status: existingByKey.status } as const;
     }
+    await protectSharedNetwork(ctx, args.networkKey, "forms");
     const fingerprint = safeKey(args.fingerprint, "fingerprint");
     await enforceRateLimit(ctx, {
       key: fingerprint,
@@ -411,6 +432,7 @@ export const registerEvent = internalMutation({
     ) {
       throw new ConvexError({ code: "REGISTRATION_CLOSED", message: "Event registration is closed." });
     }
+    await protectSharedNetwork(ctx, args.networkKey, "forms");
     const fingerprint = safeKey(args.fingerprint, "fingerprint");
     const email = normalizedEmail(args.email);
     await enforceRateLimit(ctx, {

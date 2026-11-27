@@ -404,6 +404,7 @@ export const submissionTypeValidator = v.union(
 );
 
 export const publicRequestFields = {
+  networkKey: v.optional(v.string()),
   fingerprint: v.string(),
   honeypot: v.optional(v.string()),
   idempotencyKey: v.string(),

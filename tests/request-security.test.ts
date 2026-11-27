@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
-import { getRequestIp, requestFingerprint, safeSameOriginPath } from "@/lib/server/request-security";
+import {
+  getRequestIp,
+  requestFingerprint,
+  requestNetworkKey,
+  safeSameOriginPath,
+} from "@/lib/server/request-security";
 import { signPublicFormPayload } from "@/lib/server/public-forms";
 import { createHmac } from "node:crypto";
 import {
@@ -39,6 +44,26 @@ describe("requestFingerprint", () => {
     vi.stubEnv("VERCEL", "");
     expect(getRequestIp(request)).toBeNull();
   });
+  it("keeps a shared-network bucket stable when browser identifiers change and keeps chats distinct", () => {
+    vi.stubEnv("VERCEL", "1");
+    const first = new NextRequest("https://school.example", {
+      headers: { "x-vercel-forwarded-for": "192.0.2.1", "user-agent": "first" },
+    });
+    const second = new NextRequest("https://school.example", {
+      headers: {
+        "x-vercel-forwarded-for": "192.0.2.1",
+        "user-agent": "second",
+        cookie: "nps_ai_session=different",
+      },
+    });
+    expect(requestNetworkKey(first, "test-secret")).toBe(requestNetworkKey(second, "test-secret"));
+    expect(requestFingerprint(first, "first-session", "test-secret")).not.toBe(
+      requestFingerprint(second, "second-session", "test-secret"),
+    );
+    second.headers.set("x-vercel-forwarded-for", "192.0.2.2");
+    expect(requestNetworkKey(first, "test-secret")).not.toBe(requestNetworkKey(second, "test-secret"));
+  });
+
   it("uses the trusted forwarding address and produces a stable HMAC", () => {
     vi.stubEnv("VERCEL", "1");
     const request = new NextRequest("https://school.example/api/forms/contact", {

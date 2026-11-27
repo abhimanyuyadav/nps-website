@@ -34,6 +34,7 @@ const registerEvent = makeFunctionReference<
     signature: string;
     requestTimestamp: number;
     fingerprint: string;
+    networkKey?: string;
     honeypot?: string;
     idempotencyKey: string;
     eventId: string;
@@ -96,6 +97,7 @@ export async function POST(request: NextRequest) {
     }
     const args = {
       fingerprint: session.fingerprint,
+      networkKey: session.networkKey,
       idempotencyKey: parsed.data.idempotencyKey ?? parsed.data.submissionId ?? crypto.randomUUID(),
       eventId,
       name: parsed.data.name,
@@ -108,6 +110,7 @@ export async function POST(request: NextRequest) {
     const signed = signPublicFormPayload(session.formServiceSecret, {
       form: "event",
       fingerprint: args.fingerprint,
+      networkKey: args.networkKey,
       honeypot: null,
       idempotencyKey: args.idempotencyKey,
       eventId: args.eventId,

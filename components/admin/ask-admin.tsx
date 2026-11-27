@@ -11,6 +11,7 @@ import { VoiceCommand } from "@/components/assistant/voice-command";
 import { api } from "@/convex/_generated/api";
 import { destinations, type Destination, type MenuPage, type NavigationIntent } from "@/lib/admin/ask-admin";
 import { useModalAccessibility } from "./use-modal-accessibility";
+import { archiveRequest } from "./use-record-access";
 
 export function AskAdmin({ menu }: { menu: MenuPage[] }) {
   const { isSignedIn, userId } = useAuth();
@@ -88,19 +89,23 @@ function CommandDialog({ menu, userId, close }: Props & { close: () => void }) {
       if (!current()) return;
       if (pages.length === 1 && !intent.directory) {
         if (intent.applicationId) {
-          let client: Pick<typeof primary, "query"> = primary;
+          const args = {
+            source: "admin:getSubmission",
+            params: { type: "admissions", id: intent.applicationId },
+          };
+          let fetchRecord = () => primary.mutation(api.recordAccess.read, args);
           const url = process.env.NEXT_PUBLIC_WORKFLOW_CONVEX_URL;
-          if (url && !intent.archive) {
+          if (intent.archive && process.env.NEXT_PUBLIC_ARCHIVE_CONVEX_URL) {
+            fetchRecord = () => archiveRequest({ operation: "read", ...args });
+          } else if (url && !intent.archive) {
             const response = await fetch("/admin/workflow-token", { method: "POST", cache: "no-store" });
             if (!response.ok) throw new Error();
             const workflow = new ConvexHttpClient(url);
             workflow.setAuth((await response.json()).token);
             await workflow.mutation(api.users.syncCurrent, {});
-            client = workflow;
+            fetchRecord = () => workflow.mutation(api.recordAccess.read, args);
           }
-          if (
-            !(await client.query(api.admin.getSubmission, { type: "admissions", id: intent.applicationId }))
-          ) {
+          if (!(await fetchRecord())) {
             if (current()) setNotice(ne ? "आवेदन फेला परेन।" : "Application not found.");
             return;
           }

@@ -1,4 +1,5 @@
 "use client";
+import { useRecordPages, useRecordDetail } from "./use-record-access";
 
 import { useMutation, usePaginatedQuery, useQuery } from "convex/react";
 import {
@@ -49,7 +50,7 @@ function AiData() {
     results: conversations,
     status: conversationsStatus,
     loadMore: loadMoreConversations,
-  } = usePaginatedQuery(adminApi.listAiConversations, {}, { initialNumItems: 30 });
+  } = useRecordPages(adminApi.listAiConversations, {}, { initialNumItems: 30 });
   const setEnabled = useMutation(assistantAdminApi.setEnabled);
   const [busy, setBusy] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -274,7 +275,7 @@ export function ConversationReview({
   const [selected, setSelected] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<{ kind: "error" | "success"; text: string } | null>(null);
-  const detail = useQuery(adminApi.getAiConversation, selected ? { conversationId: selected } : "skip");
+  const detail = useRecordDetail(adminApi.getAiConversation, selected ? { conversationId: selected } : "skip");
   const closeConversation = useMutation(adminApi.closeAiConversation);
   const { dialogRef, onDialogKeyDown } = useModalAccessibility<HTMLDivElement>(
     Boolean(selected),

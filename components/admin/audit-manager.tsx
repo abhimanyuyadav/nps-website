@@ -6,7 +6,7 @@ import { useState } from "react";
 import { ADMIN_ACCESS_ROLES } from "@/lib/admin/authorization";
 import { AdminFeatureGate } from "./admin-gate";
 import { adminApi } from "./convex-api";
-import { formatDate } from "./content-manager";
+
 import { EmptyState, LoadingPanel, PaginationControls } from "./ui";
 
 export function AuditManager() {
@@ -28,7 +28,11 @@ function AuditData() {
   } = usePaginatedQuery(
     adminApi.listAuditLogs,
     {
-      ...(entityType.trim() ? { entityType: entityType.trim() } : {}),
+      ...(entityType.trim()
+        ? /^[a-z0-9]{20,64}$/i.test(entityType.trim())
+          ? { recordId: entityType.trim() }
+          : { entityType: entityType.trim() }
+        : {}),
       ...(actorId.trim() ? { actorId: actorId.trim() } : {}),
     },
     { initialNumItems: 50 },
@@ -40,8 +44,8 @@ function AuditData() {
         <div className="flex items-start gap-3">
           <ShieldCheck className="mt-0.5 shrink-0 text-sky-700" size={19} />
           <p className="leading-6">
-            <b>Staff activity history</b> This log shows who made changes in the admin panel. The entries are
-            read-only.
+            <b>Staff activity history</b> See who received, opened or exported school records. Times are shown
+            in Nepal time.
           </p>
         </div>
       </div>
@@ -53,7 +57,7 @@ function AuditData() {
             value={entityType}
             onChange={(event) => setEntityType(event.target.value)}
             className="w-full rounded-xl border border-slate-200 py-3 pr-3 pl-10 text-sm outline-none focus:border-sky-600"
-            placeholder="Type of item, for example news"
+            placeholder="Type of item or exact record ID"
           />
         </label>
         <label className="relative flex-1">
@@ -106,13 +110,25 @@ function AuditData() {
               <div className="text-xs text-slate-500">
                 <p className="flex items-start gap-2">
                   <Clock className="mt-0.5 shrink-0" size={13} />
-                  {typeof entry.createdAt === "number" ? formatDate(entry.createdAt) : "Unknown time"}
+                  {typeof entry.createdAt === "number"
+                    ? new Date(entry.createdAt).toLocaleString("en-GB", {
+                        timeZone: "Asia/Kathmandu",
+                        dateStyle: "medium",
+                        timeStyle: "medium",
+                      })
+                    : "Unknown time"}
                 </p>
                 <p
                   className="mt-2 truncate font-mono text-[10px]"
                   title={String(entry.actorId ?? entry.actorClerkId ?? "system")}
                 >
-                  {String(entry.actorId ?? entry.actorClerkId ?? "System")}
+                  {String(
+                    (entry.metadata as Record<string, string> | undefined)?.actorName ??
+                      actors?.find((actor) => actor._id === entry.actorId)?.name ??
+                      entry.actorId ??
+                      entry.actorClerkId ??
+                      "System",
+                  )}
                 </p>
               </div>
             </li>

@@ -8,7 +8,7 @@ import {
   normalizeAssistantServiceSecret,
 } from "@/convex/lib/assistantSignature";
 import { isConfiguredSecret } from "@/lib/security/configuration";
-import { requestFingerprint, safeSameOriginPath } from "@/lib/server/request-security";
+import { requestFingerprint, requestNetworkKey, safeSameOriginPath } from "@/lib/server/request-security";
 
 export const runtime = "nodejs";
 export const maxDuration = 90;
@@ -45,6 +45,7 @@ const askAssistant = makeFunctionReference<
     signature: string;
     requestTimestamp: number;
     fingerprint: string;
+    networkKey?: string;
     sessionId: string;
     message: string;
     history?: Array<{ role: "user" | "assistant"; content: string }>;
@@ -74,11 +75,13 @@ export async function POST(request: NextRequest) {
   const cookieValue = request.cookies.get(SESSION_COOKIE)?.value;
   const existingSession = cookieValue && /^[a-f0-9-]{36}$/i.test(cookieValue) ? cookieValue : undefined;
   const sessionId = existingSession ?? randomUUID();
+  const networkKey = requestNetworkKey(request, serviceSecret);
   const fingerprint = requestFingerprint(request, sessionId, serviceSecret);
   const requestTimestamp = Date.now();
   const signaturePayload = canonicalAssistantSignaturePayload({
     requestTimestamp,
     fingerprint,
+    networkKey,
     sessionId,
     message: parsed.data.message,
     history: parsed.data.history ?? [],
@@ -92,6 +95,7 @@ export async function POST(request: NextRequest) {
         signature,
         requestTimestamp,
         fingerprint,
+        networkKey,
         sessionId,
         message: parsed.data.message,
         history: parsed.data.history,

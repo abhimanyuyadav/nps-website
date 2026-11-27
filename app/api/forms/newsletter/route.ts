@@ -27,6 +27,7 @@ const subscribeNewsletter = makeFunctionReference<
     signature: string;
     requestTimestamp: number;
     fingerprint: string;
+    networkKey?: string;
     honeypot?: string;
     idempotencyKey: string;
     email: string;
@@ -57,6 +58,7 @@ export async function POST(request: NextRequest) {
   try {
     const args = {
       fingerprint: session.fingerprint,
+      networkKey: session.networkKey,
       idempotencyKey: parsed.data.idempotencyKey ?? parsed.data.submissionId ?? crypto.randomUUID(),
       email: parsed.data.email.toLowerCase(),
       name: parsed.data.name || undefined,
@@ -66,6 +68,7 @@ export async function POST(request: NextRequest) {
     const signed = signPublicFormPayload(session.formServiceSecret, {
       form: "newsletter",
       fingerprint: args.fingerprint,
+      networkKey: args.networkKey,
       honeypot: null,
       idempotencyKey: args.idempotencyKey,
       email: args.email,

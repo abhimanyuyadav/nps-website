@@ -1,6 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import { mutation, query, type QueryCtx } from "./_generated/server";
-import { currentUser, isClerkStaffIdentity, requireClerkStaffIdentity } from "./lib/auth";
+import { currentUser, delegatedStaffRoles, isClerkStaffIdentity, requireClerkStaffIdentity } from "./lib/auth";
 import { normalizedEmail, plainText } from "./lib/input";
 import { writeAudit } from "./lib/audit";
 import { roleValidator, userStatusValidator } from "./schema";
@@ -72,21 +72,10 @@ export const syncCurrent = mutation({
       .withIndex("by_clerk_user_id", (q) => q.eq("clerkUserId", identity.subject))
       .unique();
 
-    const delegation =
-      process.env.WORKFLOW_JWKS && !process.env.SCHOOL_CLERK_ISSUER && Array.isArray(identity.roles)
-        ? {
-            status: "active" as const,
-            roles: identity.roles.filter(
-              (r): r is "admin" | "publisher" | "admissions" | "editor" =>
-                r === "admin" || r === "publisher" || r === "editor" || r === "admissions",
-            ),
-          }
-        : {};
     if (existing) {
       await ctx.db.patch("users", existing._id, {
         email,
         name,
-        ...delegation,
         imageUrl: identity.pictureUrl,
         lastLoginAt: now,
         updatedAt: now,
@@ -94,14 +83,17 @@ export const syncCurrent = mutation({
       return existing._id;
     }
 
+    // A bridge-only deployment provisions new staff from a verified delegation.
+    // Subsequent synchronization preserves roster decisions, including suspensions.
+    const roles = process.env.SCHOOL_CLERK_ISSUER ? [] : (delegatedStaffRoles(identity) ?? []);
+    const status = roles.length ? "active" : "pending";
     const id = await ctx.db.insert("users", {
       clerkUserId: identity.subject,
       email,
       name,
       imageUrl: identity.pictureUrl,
-      roles: [],
-      status: "pending",
-      ...delegation,
+      roles,
+      status,
       lastLoginAt: now,
       createdAt: now,
       updatedAt: now,
@@ -110,7 +102,7 @@ export const syncCurrent = mutation({
       action: "user.synced",
       entityType: "users",
       entityId: id,
-      summary: `Created pending staff profile for ${email}.`,
+      summary: `Created ${status} staff profile for ${email}.`,
     });
     return id;
   },

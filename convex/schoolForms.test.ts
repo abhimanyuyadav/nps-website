@@ -35,6 +35,8 @@ describe("school office forms", () => {
       submissionId: "42a64c65-cb50-497a-abde-d8e0783d86d8",
       email: "parent@example.test",
       fingerprint: "visitor-test",
+      networkKey: "a".repeat(64),
+      consentVersion: "share-answers-v1" as const,
       answers: ["Art"],
     };
     await expect(
@@ -42,11 +44,19 @@ describe("school office forms", () => {
     ).rejects.toThrow();
     const ref = await t.mutation(internal.schoolForms.record, input);
     expect(await t.mutation(internal.schoolForms.record, input)).toBe(ref);
+    const saved = await t.run((ctx) => ctx.db.query("schoolResponses").unique());
+    expect(saved?.consent).toMatchObject({ version: "share-answers-v1", formRevision: 2, at: expect.any(Number) });
+    await t.run(async ctx => {
+      const quota = await ctx.db.query("rateLimits").withIndex("by_key_scope", q => q.eq("key", "a".repeat(64)).eq("scope", "forms:network")).unique();
+      if (!quota) throw new Error("Missing shared network quota");
+      await ctx.db.patch("rateLimits", quota._id, { count: 120 });
+    });
+    await expect(t.mutation(internal.schoolForms.record, { ...input, fingerprint: "another-session", submissionId: "another-response", email: "another@example.test" })).rejects.toThrow();
     const jobs = await t.run((ctx) => ctx.db.query("jobs").collect());
     expect(jobs.map((j) => j.type).sort()).toEqual(["school_form_alert", "school_form_receipt"]);
     const query = { id, paginationOpts: { numItems: 20, cursor: null } };
-    await expect(t.query(api.schoolForms.responses, query)).rejects.toThrow();
-    expect((await admin.query(api.schoolForms.responses, query)).page).toHaveLength(1);
+    await expect(t.query(internal.schoolForms.responses, query)).rejects.toThrow();
+    expect((await admin.query(internal.schoolForms.responses, query)).page).toHaveLength(1);
     await admin.mutation(api.schoolForms.setStatus, { id, revision: 2, status: "closed" });
     await expect(
       t.mutation(internal.schoolForms.record, { ...input, submissionId: "other-request" }),

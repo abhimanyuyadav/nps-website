@@ -1,6 +1,23 @@
 import { ConvexError } from "convex/values";
 import type { MutationCtx } from "../_generated/server";
 
+// Keep the tighter per-session and per-email limits alongside this shared-network limit.
+// Optional supports older, server-signed requests during the frontend rollout.
+export async function protectSharedNetwork(
+  ctx: MutationCtx,
+  key: string | undefined,
+  service: "forms" | "assistant",
+) {
+  if (key === undefined) return;
+  if (!/^[0-9a-f]{64}$/.test(key)) throw new ConvexError("Invalid network identifier.");
+  await enforceRateLimit(ctx, {
+    key,
+    scope: service + ":network",
+    limit: 120,
+    windowMs: (service === "forms" ? 60 : 10) * 60 * 1000,
+  });
+}
+
 export async function enforceRateLimit(
   ctx: MutationCtx,
   options: {

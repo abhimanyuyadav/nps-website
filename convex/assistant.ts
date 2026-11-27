@@ -369,6 +369,7 @@ function verifySignature(args: {
   signature: string;
   requestTimestamp: number;
   fingerprint: string;
+  networkKey?: string;
   sessionId: string;
   message: string;
   history?: Array<{ role: "user" | "assistant"; content: string }>;
@@ -395,6 +396,7 @@ function verifySignature(args: {
   const canonicalPayload = canonicalAssistantSignaturePayload({
     requestTimestamp: args.requestTimestamp,
     fingerprint: args.fingerprint,
+    networkKey: args.networkKey,
     sessionId: args.sessionId,
     message: args.message,
     history: args.history ?? [],
@@ -494,6 +496,7 @@ export const ask = action({
     signature: v.string(),
     requestTimestamp: v.number(),
     fingerprint: v.string(),
+    networkKey: v.optional(v.string()),
     sessionId: v.string(),
     message: v.string(),
     history: v.optional(assistantHistoryValidator),
@@ -506,6 +509,7 @@ export const ask = action({
       throw new ConvexError({ code: "ASSISTANT_DISABLED", message: "The school assistant is unavailable." });
     const prepared: PreparedAssistantRequest = await ctx.runMutation(internal.assistantData.prepare, {
       fingerprint: args.fingerprint,
+    networkKey: args.networkKey,
       sessionId: args.sessionId,
       message: args.message,
       signatureKey: shortHash(args.signature),

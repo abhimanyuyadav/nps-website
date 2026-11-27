@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("convex/server", () => ({ makeFunctionReference: (name: string) => name }));
+vi.mock("@/components/admin/use-record-access", () => ({ useRecordPages: mocks.usePaginatedQuery, useRecordDetail: mocks.useQuery }));
 vi.mock("convex/react", () => ({
   usePaginatedQuery: mocks.usePaginatedQuery,
   useQuery: mocks.useQuery,

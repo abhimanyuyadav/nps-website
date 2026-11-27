@@ -1,4 +1,5 @@
 "use client";
+import { useRecordPages } from "./use-record-access";
 
 import { useMutation, usePaginatedQuery, useQuery } from "convex/react";
 import {
@@ -545,7 +546,7 @@ function SubscribersPanel() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ kind: "error" | "success"; text: string } | null>(null);
   const update = useMutation(adminApi.updateSubscriber);
-  const { results, status, loadMore } = usePaginatedQuery(
+  const { results, status, loadMore } = useRecordPages(
     adminApi.listSubscribers,
     filter === "all" ? {} : { status: filter },
     { initialNumItems: 50 },

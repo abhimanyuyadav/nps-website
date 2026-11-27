@@ -29,6 +29,7 @@ const usePaginatedQuery = vi.hoisted(() =>
 vi.mock("@clerk/nextjs", () => ({
   useAuth: () => ({ isLoaded: true, isSignedIn: true }),
 }));
+vi.mock("@/components/admin/use-record-access", () => ({ useRecordPages: usePaginatedQuery, useRecordDetail: useQuery }));
 vi.mock("convex/react", () => ({ useMutation, usePaginatedQuery, useQuery }));
 
 describe("AI administration UI", () => {

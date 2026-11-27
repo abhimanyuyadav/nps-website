@@ -1,13 +1,18 @@
 """Transcribe a short mono 16 kHz PCM command in memory on the school server."""
 import hashlib
+import hmac
+import ipaddress
 import json
 import os
 import tempfile
 import threading
+import time
 from functools import lru_cache
 from http.server import BaseHTTPRequestHandler
 from pathlib import Path
-from urllib.request import urlopen
+from urllib.error import URLError
+from urllib.parse import urlsplit
+from urllib.request import Request, urlopen
 
 # Immutable weight revisions and verified file digests. The Nepali model decodes
 # Devanagari more accurately than the small multilingual command model.
@@ -24,6 +29,43 @@ WEIGHTS = {
 LOCK = threading.Lock()
 SAMPLE_RATE = 16000
 MAX_BYTES = 2 * SAMPLE_RATE * 10
+
+
+def voice_quota(headers):
+    """Check the shared quota before loading a model or transcribing audio."""
+    secret = os.environ.get("FORM_SERVICE_SECRET", "")
+    key = os.environ.get("REQUEST_FINGERPRINT_SECRET", "")
+    base = os.environ.get("NEXT_PUBLIC_WORKFLOW_CONVEX_URL") or os.environ.get("NEXT_PUBLIC_CONVEX_URL", "")
+    destination = urlsplit(base)
+    if (len(secret) < 32 or len(key) < 32 or destination.scheme != "https"
+            or not (destination.hostname or "").endswith(".convex.cloud")
+            or destination.username or destination.password):
+        return 503
+    address = "unattributed"
+    if os.environ.get("VERCEL") == "1":
+        try:
+            address = str(ipaddress.ip_address(headers.get("X-Vercel-Forwarded-For", "").strip()))
+        except ValueError:
+            pass
+    network = hmac.new(key.encode(), ("school-voice-network-v1:" + address).encode(), hashlib.sha256).hexdigest()
+    stamp = int(time.time() * 1000)
+    signed = json.dumps({"requestTimestamp": stamp, "form": "voice-quota", "networkKey": network},
+                        separators=(",", ":")).encode()
+    args = {"requestTimestamp": stamp, "networkKey": network,
+            "signature": hmac.new(secret.encode(), signed, hashlib.sha256).hexdigest()}
+    request = Request(base.rstrip("/") + "/api/action",
+                      data=json.dumps({"path": "formActions:authorizeVoice", "args": [args], "format": "convex_encoded_json"}).encode(),
+                      headers={"Content-Type": "application/json"}, method="POST")
+    try:
+        with urlopen(request, timeout=5) as response:
+            result = json.loads(response.read(4096))
+        if not isinstance(result, dict) or result.get("status") != "success":
+            return 503
+        if result.get("value") is True:
+            return 200
+        return 429 if result.get("value") is False else 503
+    except (ValueError, OSError, URLError):
+        return 503
 
 
 @lru_cache(maxsize=2)
@@ -90,7 +132,17 @@ class handler(BaseHTTPRequestHandler):
         language = self.headers.get("X-Voice-Language", "")
         if self.headers.get("Sec-Fetch-Site") == "cross-site":
             return self.reply(403, {"error": "Open Ask NPS on the school website."})
-        if self.headers.get("X-Voice-Stage") == "prepare" and size == 0 and language in ("en", "ne"):
+        prepare = self.headers.get("X-Voice-Stage") == "prepare" and size == 0
+        if language not in ("en", "ne") or (not prepare and (
+                self.headers.get("Content-Type") != "application/octet-stream"
+                or not 6400 <= size <= MAX_BYTES or size % 2)):
+            return self.reply(400, {"error": "Record a short command in English or Nepali."})
+        quota = voice_quota(self.headers)
+        if quota != 200:
+            message = ("Too many voice requests. Try again later." if quota == 429
+                       else "Voice transcription is temporarily unavailable.")
+            return self.reply(quota, {"error": message})
+        if prepare:
             if not LOCK.acquire(timeout=3):
                 return self.reply(429, {"error": "Voice transcription is busy. Please try again shortly."})
             try:
@@ -101,9 +153,6 @@ class handler(BaseHTTPRequestHandler):
             finally:
                 LOCK.release()
             return self.reply(200, {"ready": True})
-        if (self.headers.get("Content-Type") != "application/octet-stream" or
-                language not in ("en", "ne") or not 6400 <= size <= MAX_BYTES or size % 2):
-            return self.reply(400, {"error": "Record a short command in English or Nepali."})
         audio = self.rfile.read(size)
         if len(audio) != size:
             return self.reply(400, {"error": "The recording was incomplete."})

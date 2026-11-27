@@ -19,6 +19,7 @@ import {
   validateArticleForSubmission,
 } from "./lib/articles";
 import { writeAudit } from "./lib/audit";
+import { removePendingArticleCover } from "./lib/pendingArticleCover";
 import { enforceRateLimit } from "./lib/rateLimit";
 import { recordCreated, recordDeleted, recordStatusChanged } from "./lib/metrics";
 import { currentStudentAuthUser, currentStudentProfile, ensureStudentProfile } from "./lib/studentAuth";
@@ -255,6 +256,7 @@ export const deleteDraft = mutation({
       limit: 20,
       windowMs: 60 * 60 * 1000,
     });
+    await removePendingArticleCover(ctx, article._id);
     await ctx.db.delete("articles", article._id);
     await recordDeleted(ctx, "articles", article.status);
     await writeAudit(ctx, null, {

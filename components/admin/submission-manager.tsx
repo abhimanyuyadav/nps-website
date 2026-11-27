@@ -1,4 +1,5 @@
 "use client";
+import { useRecordPages, useRecordDetail, archiveRequest, useArchiveRecords } from "./use-record-access";
 
 import { useMutation, usePaginatedQuery, useQuery } from "convex/react";
 import {
@@ -13,6 +14,8 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
+import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
 import { useSearchParams } from "next/navigation";
 import { useMemo, useState, type FormEvent } from "react";
 import { ADMIN_ACCESS_ROLES, submissionRequiredRoles } from "@/lib/admin/authorization";
@@ -67,12 +70,38 @@ function SubmissionData({ type }: { type: SubmissionType }) {
         : contactStatuses;
   const [status, setStatus] = useState("all");
   const [search, setSearch] = useState("");
-  const [selected, setSelected] = useState<AdminRecord | null>(null);
+  const releaseExport = useMutation(api.recordAccess.exportRegistrations);
+  const archive = useArchiveRecords();
+  const [exportBusy, setExportBusy] = useState(false);
+  const [exportError, setExportError] = useState("");
+  async function downloadRegistrations(records: AdminRecord[]) {
+    if (exportBusy) return;
+    setExportBusy(true);
+    setExportError("");
+    try {
+      const released: AdminRecord[] = [];
+      for (let start = 0; start < records.length; start += 100) {
+        const ids = records.slice(start, start + 100).map((row) => row._id as Id<"eventRegistrations">);
+        released.push(
+          ...(archive
+            ? await archiveRequest<AdminRecord[]>({ operation: "export", ids })
+            : await releaseExport({ ids })),
+        );
+      }
+      exportRegistrationCsv(released);
+    } catch {
+      setExportError("The export could not be recorded. Refresh the list and try again.");
+    } finally {
+      setExportBusy(false);
+    }
+  }
+  const [selectedId, setSelected] = useState<string | null>(null);
+  const selected = useRecordDetail(adminApi.getSubmission, selectedId ? { type, id: selectedId } : "skip");
   const {
     results,
     status: paginationStatus,
     loadMore,
-  } = usePaginatedQuery(
+  } = useRecordPages(
     adminApi.listSubmissions,
     { type, ...(status === "all" ? {} : { status }) },
     { initialNumItems: 50 },
@@ -137,7 +166,7 @@ function SubmissionData({ type }: { type: SubmissionType }) {
             <span />
           </div>
           {records.map((item) => (
-            <SubmissionRow key={item._id} item={item} type={type} onOpen={() => setSelected(item)} />
+            <SubmissionRow key={item._id} item={item} type={type} onOpen={() => setSelected(item._id)} />
           ))}
         </div>
       )}
@@ -157,13 +186,15 @@ function SubmissionData({ type }: { type: SubmissionType }) {
         <div className="mt-4 flex justify-end">
           <button
             type="button"
-            onClick={() => exportRegistrationCsv(records)}
+            disabled={exportBusy}
+            onClick={() => void downloadRegistrations(records)}
             className={secondaryButtonClass}
           >
             Download this list (CSV)
           </button>
         </div>
       )}
+      {exportError && <Feedback kind="error">{exportError}</Feedback>}
       {selected && (
         <SubmissionEditor type={type} item={selected} statuses={statuses} onClose={() => setSelected(null)} />
       )}
@@ -411,7 +442,7 @@ function SubmissionEditor({
 }
 
 function AdmissionDetailData({ id }: { id: string }) {
-  const item = useQuery(adminApi.getSubmission, { type: "admissions", id });
+  const item = useRecordDetail(adminApi.getSubmission, { type: "admissions", id });
   const [editing, setEditing] = useState(false);
   if (item === undefined) return <LoadingPanel label="Loading application" />;
   if (!item)

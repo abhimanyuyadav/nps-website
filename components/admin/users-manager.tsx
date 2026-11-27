@@ -1,4 +1,5 @@
 "use client";
+import { useRecordPages, useRecordDetail } from "./use-record-access";
 
 import { useMutation, usePaginatedQuery } from "convex/react";
 import { LoaderCircle, Pencil, Shield, UserCheck, UserX, X } from "lucide-react";
@@ -31,13 +32,14 @@ export function UsersManager() {
 
 function UsersData() {
   const [filter, setFilter] = useState("all");
-  const [editing, setEditing] = useState<AdminRecord | null>(null);
+  const [editingId, setEditing] = useState<string | null>(null);
+  const editing = useRecordDetail(adminApi.getStaffRecord, editingId ? { id: editingId } : "skip");
   const [feedback, setFeedback] = useState<{ kind: "error" | "success"; text: string } | null>(null);
   const {
     results,
     status: paginationStatus,
     loadMore,
-  } = usePaginatedQuery(
+  } = useRecordPages(
     adminApi.listUsers,
     { ...(filter === "all" ? {} : { status: filter }) },
     { initialNumItems: 50 },
@@ -124,7 +126,7 @@ function UsersData() {
                 </time>
               </div>
               <button
-                onClick={() => setEditing(user)}
+                onClick={() => setEditing(user._id)}
                 className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 text-sm font-bold text-sky-800 hover:bg-sky-50 xl:min-w-11 xl:border-0 xl:p-2.5"
                 aria-label={`Edit ${String(user.name)}`}
               >

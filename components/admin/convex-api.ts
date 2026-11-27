@@ -222,6 +222,7 @@ export const adminApi = {
   closeAiConversation: makeFunctionReference<"mutation", { conversationId: string }, { ok: boolean }>(
     "admin:closeAiConversation",
   ),
+  getStaffRecord: makeFunctionReference<"query", {id:string}, AdminRecord | null>("admin:getStaffRecord"),
   listUsers: makeFunctionReference<
     "query",
     { paginationOpts: PaginationOpts; status?: string },
@@ -242,7 +243,7 @@ export const adminApi = {
   >("admin:listAuditActors"),
   listAuditLogs: makeFunctionReference<
     "query",
-    { paginationOpts: PaginationOpts; entityType?: string; actorId?: string },
+    { paginationOpts: PaginationOpts; entityType?: string; actorId?: string; recordId?: string },
     PageResult<AdminRecord>
   >("admin:listAuditLogs"),
   listJobs: makeFunctionReference<

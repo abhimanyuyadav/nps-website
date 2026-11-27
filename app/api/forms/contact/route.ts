@@ -32,6 +32,7 @@ const submitContact = makeFunctionReference<
     signature: string;
     requestTimestamp: number;
     fingerprint: string;
+    networkKey?: string;
     honeypot?: string;
     idempotencyKey: string;
     name: string;
@@ -74,6 +75,7 @@ export async function POST(request: NextRequest) {
   try {
     const args = {
       fingerprint: session.fingerprint,
+      networkKey: session.networkKey,
       idempotencyKey: parsed.data.idempotencyKey ?? parsed.data.submissionId ?? crypto.randomUUID(),
       name: parsed.data.name,
       email: parsed.data.email.toLowerCase(),
@@ -86,6 +88,7 @@ export async function POST(request: NextRequest) {
     const signed = signPublicFormPayload(session.formServiceSecret, {
       form: "contact",
       fingerprint: args.fingerprint,
+      networkKey: args.networkKey,
       honeypot: null,
       idempotencyKey: args.idempotencyKey,
       name: args.name,

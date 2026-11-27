@@ -30,13 +30,13 @@ describe("production authorization boundaries", () => {
 
     await insertUser(t, "admissions-user", ["admissions"]);
     const asAdmissions = t.withIdentity({ subject: "admissions-user" });
-    const admissions = await asAdmissions.query(api.admin.listSubmissions, {
+    const admissions = await asAdmissions.query(internal.admin.listSubmissions, {
       type: "admissions",
       paginationOpts: { numItems: 10, cursor: null },
     });
     expect(admissions.page).toEqual([]);
     await expect(
-      asAdmissions.query(api.admin.listSubmissions, {
+      asAdmissions.query(internal.admin.listSubmissions, {
         type: "contacts",
         paginationOpts: { numItems: 10, cursor: null },
       }),
@@ -79,11 +79,11 @@ describe("production authorization boundaries", () => {
     const detail = { type: "admissions" as const, id };
     const list = { type: "admissions" as const, paginationOpts: { numItems: 10, cursor: null } };
     for (const viewer of [t, teacher]) {
-      await expect(viewer.query(api.admin.listSubmissions, list)).rejects.toThrow();
-      await expect(viewer.query(api.admin.getSubmission, detail)).rejects.toThrow();
+      await expect(viewer.query(internal.admin.listSubmissions, list)).rejects.toThrow();
+      await expect(viewer.query(internal.admin.getSubmission, detail)).rejects.toThrow();
     }
-    expect((await intake.query(api.admin.listSubmissions, list)).page).toMatchObject([{ _id: id }]);
-    expect(await intake.query(api.admin.getSubmission, detail)).toMatchObject({
+    expect((await intake.query(internal.admin.listSubmissions, list)).page).toMatchObject([{ _id: id }]);
+    expect(await intake.query(internal.admin.getSubmission, detail)).toMatchObject({
       guardian: { email: "family@example.test" },
     });
   });
@@ -119,7 +119,7 @@ describe("production authorization boundaries", () => {
     const subscriber = await t.run(async (ctx) => await ctx.db.get("newsletterSubscribers", subscriberId));
     expect(subscriber?.status).toBe("unsubscribed");
 
-    const listed = await asAdmin.query(api.admin.listSubscribers, {
+    const listed = await asAdmin.query(internal.admin.listSubscribers, {
       paginationOpts: { numItems: 10, cursor: null },
     });
     expect(listed.page[0]).not.toHaveProperty("lastIdempotencyKey");
@@ -207,7 +207,7 @@ describe("production authorization boundaries", () => {
     const t = convexTest(schema, modules);
     await insertUser(t, "admin-user", ["admin"]);
     await expect(
-      t.withIdentity({ subject: "admin-user" }).query(api.admin.listUsers, {
+      t.withIdentity({ subject: "admin-user" }).query(internal.admin.listUsers, {
         paginationOpts: { numItems: 101, cursor: null },
       }),
     ).rejects.toThrow(/between 1 and 100/i);
@@ -341,6 +341,20 @@ describe("production authorization boundaries", () => {
       return { eventId, waitlistedId };
     });
     const asAdmin = t.withIdentity({ subject: "admin-user" });
+    const args = { source: "admin:listSubmissions", params: { type: "eventRegistrations" } };
+    const paginationOpts = { cursor: null, numItems: 10 };
+    const revision = await asAdmin.query(api.recordAccess.pageVersion, { ...args, paginationOpts });
+    expect(revision.page[0].version).toHaveLength(64);
+    expect(JSON.stringify(revision)).not.toContain("NPS-E-");
+    await expect(t.mutation(api.recordAccess.exportRegistrations, { ids: [waitlistedId] })).rejects.toThrow();
+    const listed = await asAdmin.mutation(api.recordAccess.read, { ...args, params: { ...args.params, paginationOpts } });
+    expect(listed.page).toHaveLength(2);
+    const exported = await asAdmin.mutation(api.recordAccess.exportRegistrations, { ids: [waitlistedId] });
+    expect(exported).toMatchObject([{ _id: waitlistedId }]);
+    const history = await asAdmin.query(api.admin.listAuditLogs, { actorId: adminId, entityType: "eventRegistrations", paginationOpts });
+    expect(history.page.map(entry => entry.action)).toEqual(["record.exported", "record.viewed", "record.viewed"]);
+    expect(history.page[0]).toMatchObject({ entityId: waitlistedId, actorId: adminId, metadata: { actorName: "admin-user" }, createdAt: expect.any(Number) });
+    expect(JSON.stringify(history.page)).not.toContain("cancel-token");
 
     await expect(
       asAdmin.mutation(api.admin.updateSubmission, {
@@ -516,6 +530,61 @@ describe("legacy event capacity reconciliation", () => {
 });
 
 describe("retention invariants", () => {
+  it("only expires old school form responses after an explicit retention period is configured", async () => {
+    vi.useFakeTimers();
+    try {
+      const t = convexTest(schema, modules);
+      const start = Date.UTC(2025, 0, 1);
+      const day = 86_400_000;
+      vi.setSystemTime(start);
+      const formId = await t.run((ctx) =>
+        ctx.db.insert("schoolForms", {
+          title: "Synthetic form",
+          description: "",
+          fields: [],
+          status: "open",
+          revision: 1,
+          updatedAt: start,
+        }),
+      );
+      const insertResponse = (submissionId: string) =>
+        t.run((ctx) =>
+          ctx.db.insert("schoolResponses", {
+            formId,
+            email: "family@example.test",
+            answers: ["Synthetic answer"],
+            submissionId,
+            reference: submissionId,
+          }),
+        );
+      const cleanup = () => t.mutation(internal.jobs.cleanupRetention, { phase: "schoolResponses" });
+      for (let index = 0; index < 11; index++) {
+        vi.setSystemTime(start + index * 1000);
+        await insertResponse(String(index));
+      }
+      vi.setSystemTime(start + 31 * day);
+      await insertResponse("recent");
+      for (const setting of [undefined, "0", "-3", "3.5", "invalid"]) {
+        vi.stubEnv("SCHOOL_RESPONSE_RETENTION_DAYS", setting);
+        expect(await cleanup()).toEqual({ deleted: 0 });
+      }
+      vi.stubEnv("SCHOOL_RESPONSE_RETENTION_DAYS", "30");
+      expect(await cleanup()).toEqual({ deleted: 10 });
+      const remaining = () => t.run(async (ctx) => {
+        const rows = await ctx.db.query("schoolResponses").take(20);
+        return rows.map((row) => row.submissionId);
+      });
+      expect(await remaining()).toEqual(["10", "recent"]);
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+      expect(await remaining()).toEqual(["recent"]);
+      const audit = await t.run((ctx) => ctx.db.query("auditLogs").take(5));
+      expect(audit.map((entry) => entry.metadata?.schoolResponses)).toEqual(["10", "1"]);
+    } finally {
+      vi.unstubAllEnvs();
+      vi.useRealTimers();
+    }
+  });
+
   it("decrements the materialized event attendee count when an old registration is removed", async () => {
     const t = convexTest(schema, modules);
     const publisherId = await insertUser(t, "retention-publisher", ["publisher"]);

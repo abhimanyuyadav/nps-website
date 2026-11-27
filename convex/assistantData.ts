@@ -5,7 +5,7 @@ import { internalMutation, internalQuery } from "./_generated/server";
 import { enqueueJob } from "./lib/jobs";
 import { AI_TRANSIENT_MAX_ATTEMPTS, aiRetryDelay, classifyAiFailure } from "./lib/aiRetry";
 import { plainText, safeKey, shortHash } from "./lib/input";
-import { enforceRateLimit } from "./lib/rateLimit";
+import { enforceRateLimit, protectSharedNetwork } from "./lib/rateLimit";
 import { currentUser } from "./lib/auth";
 
 const preparedRequestValidator = v.object({
@@ -28,7 +28,13 @@ const citationValidator = v.object({
 });
 
 export const prepare = internalMutation({
-  args: { fingerprint: v.string(), sessionId: v.string(), message: v.string(), signatureKey: v.string() },
+  args: {
+    fingerprint: v.string(),
+    networkKey: v.optional(v.string()),
+    sessionId: v.string(),
+    message: v.string(),
+    signatureKey: v.string(),
+  },
   returns: preparedRequestValidator,
   handler: async (ctx, args) => {
     const settings = await ctx.db
@@ -49,6 +55,7 @@ export const prepare = internalMutation({
       windowMs: 5 * 60 * 1000,
       blockMs: 5 * 60 * 1000,
     });
+    await protectSharedNetwork(ctx, args.networkKey, "assistant");
     const remainingFingerprint = await enforceRateLimit(ctx, {
       key: fingerprint,
       scope: "assistant:fingerprint",
