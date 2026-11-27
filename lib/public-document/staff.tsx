@@ -51,12 +51,12 @@ export function renderStaffSignIn(
           <a className="skip-link" href="#main-content">
             Skip to main content
           </a>
-          <StaffSignInShell configured={Boolean(domain)} compact={method === "choose" || nativeForm}>
+          <StaffSignInShell configured={Boolean(domain)}>
             {method === "choose" ? (
               <div className="w-full space-y-4">
                 <Link
                   href="/sign-in?staff-method=google"
-                  className="block rounded-xl bg-[#2e3192] px-4 py-3 text-center text-sm font-bold text-white"
+                  className="block rounded-xl bg-[#2e3192] px-4 py-3 text-center text-sm font-bold text-white hover:bg-[#262873]"
                 >
                   Continue with Google
                 </Link>
@@ -85,7 +85,7 @@ export function renderStaffSignIn(
                     type="email"
                     required
                     autoComplete="email"
-                    className="block w-full rounded-xl border border-slate-400 px-3 py-2"
+                    className="block min-h-11 w-full rounded-lg border border-slate-400 px-3 py-2 text-base read-only:bg-slate-50"
                   />
                   {method === "password" && (
                     <label className="block text-sm font-bold">
@@ -95,11 +95,15 @@ export function renderStaffSignIn(
                         type="password"
                         required
                         autoComplete="current-password"
-                        className="mt-2 block w-full rounded-xl border border-slate-400 px-3 py-2"
+                        className="mt-2 block min-h-11 w-full rounded-lg border border-slate-400 bg-white px-3 py-2 text-base"
                       />
                     </label>
                   )}
-                  <div id="staff-code-step" hidden>
+                  <div
+                    id="staff-code-step"
+                    hidden
+                    className="rounded-lg border border-[#c4c9ef] bg-[#f7f8fd] p-4"
+                  >
                     <label htmlFor="staff-code" className="block text-sm font-bold">
                       Code from your email
                     </label>
@@ -109,7 +113,7 @@ export function renderStaffSignIn(
                       inputMode="numeric"
                       autoComplete="one-time-code"
                       disabled
-                      className="mt-2 block w-full rounded-xl border border-slate-400 px-3 py-2"
+                      className="mt-2 block min-h-11 w-full rounded-lg border border-slate-400 bg-white px-3 py-2 text-base"
                     />
                     {method === "recover" && (
                       <label className="mt-3 block text-sm font-bold">
@@ -120,7 +124,7 @@ export function renderStaffSignIn(
                           disabled
                           required
                           autoComplete="new-password"
-                          className="mt-2 block w-full rounded-xl border border-slate-400 px-3 py-2"
+                          className="mt-2 block min-h-11 w-full rounded-lg border border-slate-400 bg-white px-3 py-2 text-base"
                         />
                       </label>
                     )}
@@ -128,7 +132,7 @@ export function renderStaffSignIn(
                   <button
                     type="submit"
                     disabled
-                    className="w-full rounded-xl bg-[#2e3192] px-4 py-3 text-sm font-bold text-white"
+                    className="w-full rounded-xl bg-[#2e3192] px-4 py-3 text-sm font-bold text-white hover:bg-[#262873] disabled:opacity-60"
                   >
                     {method === "password"
                       ? "Sign in"
@@ -136,24 +140,41 @@ export function renderStaffSignIn(
                         ? "Send a password reset code"
                         : "Send a sign-in code"}
                   </button>
-                  <p id="staff-status" role="status" className="text-sm text-slate-700" />
+                  <p
+                    id="staff-status"
+                    role="status"
+                    className="text-sm leading-5 text-slate-700 empty:hidden"
+                  />
                 </form>
-                {method === "email" && (
-                  <Link
-                    href="/sign-in?staff-method=provider"
-                    className="block text-sm font-bold text-sky-700"
-                  >
-                    Sign in with a password
-                  </Link>
-                )}
-                {method !== "recover" && (
-                  <Link href="/sign-in?staff-method=recover" className="block text-sm font-bold text-sky-700">
-                    Forgot your password?
-                  </Link>
-                )}
-                <Link href="/sign-in?staff-ui=next" className="block text-sm font-bold text-sky-700">
-                  More sign-in options
-                </Link>
+                <details className="border-t border-[#dfe2f7] pt-2">
+                  <summary className="cursor-pointer rounded py-3 text-sm font-semibold text-[#2e3192]">
+                    Other sign-in options
+                  </summary>
+                  <div className="grid gap-1">
+                    {method === "email" && (
+                      <Link
+                        href="/sign-in?staff-method=provider"
+                        className="block rounded px-1 py-2 text-sm font-semibold text-sky-700 underline underline-offset-4"
+                      >
+                        Sign in with a password
+                      </Link>
+                    )}
+                    {method !== "recover" && (
+                      <Link
+                        href="/sign-in?staff-method=recover"
+                        className="block rounded px-1 py-2 text-sm font-semibold text-sky-700 underline underline-offset-4"
+                      >
+                        Forgot your password?
+                      </Link>
+                    )}
+                    <Link
+                      href="/sign-in?staff-ui=next"
+                      className="block rounded px-1 py-2 text-sm font-semibold text-sky-700 underline underline-offset-4"
+                    >
+                      Open the full sign-in form
+                    </Link>
+                  </div>
+                </details>
               </div>
             ) : (
               <div className="w-full" id="staff-clerk" data-method={method}>

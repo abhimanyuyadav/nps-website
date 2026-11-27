@@ -2,7 +2,15 @@
 @source "./staff.tsx";
 @source "../../components/site/staff-sign-in-shell.tsx";
 
+@font-face {
+  font-family: "Manrope";
+  src: url("__STAFF_FONT_URL__") format("woff2");
+  font-weight: 200 800;
+  font-display: swap;
+}
+
 @theme {
+  --font-sans: "Manrope", system-ui, sans-serif;
   --color-sky-700: #2e3192;
   --color-sky-900: #262873;
 }

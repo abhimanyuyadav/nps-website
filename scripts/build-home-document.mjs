@@ -244,7 +244,7 @@ await build({
   outfile: path.join(generatedDir, "staff.mjs"),
   define: {
     ...common.define,
-    STAFF_CSS: JSON.stringify(staffStyles.outputFiles[0].text),
+    STAFF_CSS: JSON.stringify(staffStyles.outputFiles[0].text.replace("__STAFF_FONT_URL__", assets.font)),
     STAFF_SCRIPT: JSON.stringify(assetUrl(staffBrowserBuild, (file) => file.endsWith(".js"))),
   },
 });

@@ -1,81 +1,62 @@
 import Link from "next/link";
-import { KeyRound, ShieldCheck } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import type { ReactNode } from "react";
-export function StaffSignInShell({
-  children,
-  configured,
-  compact = false,
-}: {
-  children: ReactNode;
-  configured: boolean;
-  compact?: boolean;
-}) {
+
+export function StaffSignInShell({ children, configured }: { children: ReactNode; configured: boolean }) {
   return (
-    <main
-      id="main-content"
-      className="relative grid min-h-screen grid-cols-[minmax(0,1fr)] place-items-center overflow-hidden bg-[#12123a] px-4 py-8 text-[#12123a] sm:py-12"
-    >
-      <div
-        aria-hidden="true"
-        className="absolute inset-0 bg-[radial-gradient(circle_at_18%_12%,rgba(14,165,233,.2),transparent_34%),radial-gradient(circle_at_86%_86%,rgba(245,158,11,.14),transparent_30%)]"
-      />
-      <section className="relative w-full max-w-md min-w-0 justify-self-center rounded-2xl border border-white/15 bg-white p-5 shadow-2xl shadow-black/30 sm:rounded-[2rem] sm:p-9">
-        <Link
-          href="/"
-          className="inline-flex items-center gap-3 rounded-xl focus:ring-4 focus:ring-sky-100 focus:outline-none"
-        >
-          <span className="grid h-11 w-11 place-items-center rounded-xl bg-[#2e3192] text-xs font-black text-white">
-            NPS
-          </span>
-          <span className="min-w-0">
-            <span className="block text-sm font-extrabold">Nepal Police School</span>
-            <span className="text-xs text-slate-500">Digital School</span>
-          </span>
-        </Link>
-
-        <div className="mt-8">
-          <p className="flex items-center gap-2 text-xs font-extrabold tracking-[.18em] text-sky-700 uppercase">
-            <ShieldCheck size={15} /> Protected workspace
-          </p>
-          <h1 className="mt-3 text-3xl font-black tracking-tight">Staff sign in</h1>
-          <p className="mt-2 text-sm leading-6 text-slate-600">
-            Use your approved school account. Access and administrative changes are audited.
-          </p>
+    <div className="flex min-h-svh flex-col bg-[#f7f8fd] text-[#1e1f5c]">
+      <header className="border-b-2 border-[#f0bd3a] bg-[#262873] text-white">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-4 sm:px-8">
+          <Link href="/" className="flex min-w-0 items-center gap-3 rounded focus-visible:outline-2">
+            {/* The same small crest is used in the standalone and Next.js sign-in pages. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/media/nps-logo.png"
+              alt=""
+              width="44"
+              height="44"
+              className="size-11 shrink-0 object-contain"
+            />
+            <span>
+              <span className="block text-sm leading-tight font-extrabold sm:text-base">
+                Nepal Police School, Garuda
+              </span>
+              <span className="mt-0.5 block text-xs text-indigo-100">Garuda, Rautahat</span>
+            </span>
+          </Link>
+          <Link
+            href="/"
+            className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded px-1 text-sm font-semibold hover:underline focus-visible:outline-2"
+          >
+            <ArrowLeft size={16} aria-hidden="true" /> Home
+          </Link>
         </div>
-
-        {configured ? (
-          <div
-            className={`mt-7 flex ${compact ? "" : "min-h-[26rem]"} justify-center [&_.cl-card]:w-full [&_.cl-card]:border-0 [&_.cl-card]:p-0 [&_.cl-card]:shadow-none [&_.cl-footer]:bg-transparent [&_.cl-rootBox]:w-full`}
-          >
-            {children}
-          </div>
-        ) : (
-          <div
-            role="status"
-            className="mt-7 rounded-2xl border border-amber-200 bg-amber-50 p-5 text-amber-950"
-          >
-            <div className="flex min-w-0 gap-3">
-              <KeyRound className="mt-0.5 shrink-0" size={20} />
-              <div className="min-w-0">
-                <h2 className="font-extrabold">Authentication setup required</h2>
-                <p className="mt-2 text-sm leading-6">
-                  Add <code className="font-bold break-all">NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY</code> and{" "}
-                  <code className="font-bold break-all">CLERK_SECRET_KEY</code> to the deployment environment,
-                  then restart the app.
-                </p>
-                <p className="mt-2 text-xs leading-5 text-amber-800">
-                  The administrator area stays read-only and does not claim that a sign-in succeeded while
-                  Clerk is unavailable.
-                </p>
+      </header>
+      <main id="main-content" className="mx-auto w-full max-w-[30rem] px-4 py-8 sm:px-5 sm:py-16">
+        <section
+          aria-labelledby="staff-title"
+          className="rounded-2xl border border-[#dfe2f7] bg-white p-5 shadow-[0_8px_28px_rgba(30,31,92,.06)] sm:p-8"
+        >
+          <h1 id="staff-title" className="text-3xl font-extrabold tracking-tight">
+            Staff sign in
+          </h1>
+          {configured ? (
+            <>
+              <p className="mt-2 text-sm leading-6 text-slate-600">
+                Use your school account to open the staff portal.
+              </p>
+              <div className="mt-6 min-w-0 [&_.cl-card]:w-full [&_.cl-card]:border-0 [&_.cl-card]:p-0 [&_.cl-card]:shadow-none [&_.cl-footer]:bg-transparent [&_.cl-rootBox]:w-full">
+                {children}
               </div>
+            </>
+          ) : (
+            <div role="status" className="mt-5 rounded-lg bg-amber-50 p-4 text-sm text-amber-950">
+              <h2 className="font-bold">Authentication setup required</h2>
+              <p className="mt-1">Staff sign-in is unavailable. Please contact the school administrator.</p>
             </div>
-          </div>
-        )}
-
-        <Link href="/" className="mt-7 inline-flex text-sm font-bold text-sky-700 hover:text-sky-900">
-          ← Return to the website
-        </Link>
-      </section>
-    </main>
+          )}
+        </section>
+      </main>
+    </div>
   );
 }
