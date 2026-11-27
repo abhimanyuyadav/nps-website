@@ -139,6 +139,7 @@ export default defineSchema({
     image: v.string(),
     alt: v.string(),
   }).index("by_article", ["articleId"]),
+  securityAlertContact: defineTable({ email: v.string() }),
   schoolMail: defineTable({
     sender: v.string(),
     staff: v.string(),

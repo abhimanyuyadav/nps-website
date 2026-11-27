@@ -2277,6 +2277,35 @@ export const retryJob = mutation({
   },
 });
 
+export const getSecurityInbox = query({
+  args: {},
+  returns: v.string(),
+  handler: async (ctx) => {
+    await requireRole(ctx, ["admin"]);
+    return (await ctx.db.query("securityAlertContact").unique())?.email ?? "";
+  },
+});
+
+export const setSecurityInbox = mutation({
+  args: { email: v.string() },
+  returns: v.null(),
+  handler: async (ctx, { email }) => {
+    const actor = await requireRole(ctx, ["admin"]);
+    const address = email.trim() ? normalizedEmail(email) : "";
+    const previous = await ctx.db.query("securityAlertContact").unique();
+    if (address === (previous?.email ?? "")) return null;
+    if (previous && !address) await ctx.db.delete("securityAlertContact", previous._id);
+    else if (previous) await ctx.db.patch("securityAlertContact", previous._id, { email: address });
+    else await ctx.db.insert("securityAlertContact", { email: address });
+    await writeAudit(ctx, actor, {
+      action: "settings.updated",
+      entityType: "securityAlertContact",
+      summary: address ? "Updated the school security contact." : "Cleared the school security contact.",
+    });
+    return null;
+  },
+});
+
 export const getSiteSettings = query({
   args: {},
   returns: v.union(v.null(), siteSettingsDocumentValidator),

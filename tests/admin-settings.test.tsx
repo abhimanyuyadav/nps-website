@@ -1,15 +1,22 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
+import { getFunctionName, type FunctionReference } from "convex/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SettingsManager } from "@/components/admin/settings-manager";
 
 const mocks = vi.hoisted(() => ({
   update: vi.fn(),
+  openProfile: vi.fn(),
   settings: {} as Record<string, unknown>,
+}));
+vi.mock("@clerk/nextjs", () => ({
+  useUser: () => ({ isLoaded: true, user: { totpEnabled: false } }),
+  useClerk: () => ({ openUserProfile: mocks.openProfile }),
 }));
 
 vi.mock("convex/react", () => ({
-  useQuery: () => mocks.settings,
+  useQuery: (query: FunctionReference<"query">) =>
+    getFunctionName(query) === "admin:getSecurityInbox" ? "" : mocks.settings,
   useMutation: () => mocks.update,
   usePaginatedQuery: () => ({ results: [], status: "Exhausted", loadMore: vi.fn() }),
 }));
@@ -37,6 +44,18 @@ describe("site settings media paths", () => {
     };
   });
   afterEach(cleanup);
+
+  it("opens the current admin's account settings and saves a separate security contact", async () => {
+    render(<SettingsManager />);
+    expect(screen.getByText("Authenticator app has not been set up for your account.")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Open my account settings" }));
+    expect(mocks.openProfile).toHaveBeenCalledOnce();
+    const inbox = screen.getByLabelText("School security email (optional)");
+    expect(inbox).toHaveValue("");
+    fireEvent.change(inbox, { target: { value: "alerts@example.test" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save security contact" }));
+    await waitFor(() => expect(mocks.update).toHaveBeenCalledWith({ email: "alerts@example.test" }));
+  });
 
   it("saves a contact edit while preserving valid root-relative branding and SEO images", async () => {
     const { container } = render(<SettingsManager />);

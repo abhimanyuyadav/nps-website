@@ -1,10 +1,12 @@
 "use client";
 
 import { useMutation, usePaginatedQuery, useQuery } from "convex/react";
+import { useClerk, useUser } from "@clerk/nextjs";
 import { LoaderCircle, Save, ShieldAlert } from "lucide-react";
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import { ADMIN_ACCESS_ROLES } from "@/lib/admin/authorization";
+import { api } from "@/convex/_generated/api";
 import { AdminFeatureGate } from "./admin-gate";
 import { adminApi, mediaApi } from "./convex-api";
 import { Feedback, LoadingPanel, inputClass, primaryButtonClass } from "./ui";
@@ -79,7 +81,94 @@ export function SettingsManager() {
   return (
     <AdminFeatureGate requiredRoles={ADMIN_ACCESS_ROLES.adminOnly}>
       <SettingsData />
+      <AdminSignInSecurity />
+      <SecurityInbox />
     </AdminFeatureGate>
+  );
+}
+
+function AdminSignInSecurity() {
+  const { isLoaded, user } = useUser();
+  const { openUserProfile } = useClerk();
+  return (
+    <div className="mt-6">
+      <SettingsSection
+        title="Your sign-in security"
+        description="Each administrator sets up their own authenticator app. Open your account settings and choose Security."
+      >
+        <p className="self-center text-sm" aria-live="polite">
+          {!isLoaded || !user
+            ? "Checking your account…"
+            : user.totpEnabled
+              ? "Authenticator app enabled for your account."
+              : "Authenticator app has not been set up for your account."}
+        </p>
+        <div>
+          <button
+            type="button"
+            className={primaryButtonClass}
+            disabled={!isLoaded || !user}
+            onClick={() => openUserProfile()}
+          >
+            Open my account settings
+          </button>
+        </div>
+      </SettingsSection>
+    </div>
+  );
+}
+
+function SecurityInbox() {
+  const saved = useQuery(api.admin.getSecurityInbox, {});
+  const save = useMutation(api.admin.setSecurityInbox);
+  const [draft, setDraft] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [feedback, setFeedback] = useState<{ kind: "success" | "error"; text: string } | null>(null);
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    if (draft === null || busy) return;
+    setBusy(true);
+    try {
+      await save({ email: draft.trim() });
+      setDraft(null);
+      setFeedback({
+        kind: "success",
+        text: draft.trim() ? "Security contact saved." : "Security contact cleared.",
+      });
+    } catch (error) {
+      setFeedback({ kind: "error", text: errorMessage(error) });
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <form onSubmit={submit} className="mt-6">
+      <SettingsSection
+        title="Security alerts"
+        description="Choose the private school inbox for security alerts. After saving, the site owner connects it in Vercel and checks that a test email arrives."
+      >
+        <label className="block text-sm font-bold">
+          School security email (optional)
+          <input
+            className={inputClass}
+            type="email"
+            placeholder="security@your-school.example"
+            value={draft ?? saved ?? ""}
+            disabled={saved === undefined || busy}
+            onChange={(event) => {
+              setDraft(event.target.value);
+              setFeedback(null);
+            }}
+          />
+        </label>
+        <div className="self-end">
+          <button className={primaryButtonClass} disabled={draft === null || busy || saved === undefined}>
+            {busy ? "Saving…" : "Save security contact"}
+          </button>
+        </div>
+        {feedback && <Feedback kind={feedback.kind}>{feedback.text}</Feedback>}
+      </SettingsSection>
+    </form>
   );
 }
 
