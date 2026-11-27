@@ -323,6 +323,7 @@ export function SiteHeader({
           <div ref={desktopNavRef} className="hidden h-full items-center xl:flex">
             {navigation.map((item, index) => {
               const active = isNavigationActive(pathname, item.href);
+              const isAboutMenu = item.href === "/about";
               const open = desktopOpen === item.href && item.items.length > 0;
               const triggerId = `desktop-nav-trigger-${index}`;
               const submenuId = `desktop-nav-submenu-${index}`;
@@ -412,12 +413,18 @@ export function SiteHeader({
                               ariaCurrent={
                                 href !== item.href && isNavigationCurrent(pathname, href) ? "page" : undefined
                               }
-                              className="group relative block rounded-xl px-4 py-2.5 text-sm font-semibold break-words text-slate-700 transition duration-300 hover:bg-sky-50 hover:pl-6 hover:text-[#262873] focus:bg-sky-50 focus:text-[#262873] focus:outline-none"
+                              className={`relative block rounded-xl px-4 py-2.5 text-sm font-semibold break-words text-slate-700 hover:bg-sky-50 hover:text-[#262873] ${
+                                isAboutMenu
+                                  ? "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[#2e3192]"
+                                  : "group transition duration-300 hover:pl-6 focus:bg-sky-50 focus:text-[#262873] focus:outline-none"
+                              }`}
                             >
-                              <span
-                                aria-hidden="true"
-                                className="absolute top-1/2 left-2.5 h-4 w-0.5 -translate-y-1/2 scale-y-0 rounded-full bg-[#2e3192] transition-transform duration-300 group-hover:scale-y-100"
-                              />
+                              {!isAboutMenu && (
+                                <span
+                                  aria-hidden="true"
+                                  className="absolute top-1/2 left-2.5 h-4 w-0.5 -translate-y-1/2 scale-y-0 rounded-full bg-[#2e3192] transition-transform duration-300 group-hover:scale-y-100"
+                                />
+                              )}
                               {label}
                             </NavigationLink>
                           ))}
