@@ -1,4 +1,4 @@
-import PublicImage from "@/components/site/public-image";
+import { EditorialImage } from "@/components/site/public-image";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { Reveal } from "@/components/site/reveal";
@@ -30,7 +30,7 @@ export function AboutSection({
         <Reveal variant="left" className="relative">
           <div className="media-zoom relative aspect-[4/5] overflow-hidden rounded-[2rem] bg-slate-100 sm:aspect-[3/4]">
             {mainImage ? (
-              <PublicImage
+              <EditorialImage
                 src={mainImage}
                 alt={section?.imageAlt ?? `${site.schoolName} grounds`}
                 fill
@@ -40,7 +40,7 @@ export function AboutSection({
             ) : (
               <div className="flex h-full flex-col items-center justify-center bg-[radial-gradient(circle_at_top,#3f43a8,#1e1f5c_62%,#12123a)] p-10 text-center text-white">
                 {site.logoUrl && (
-                  <PublicImage
+                  <EditorialImage
                     src={site.logoUrl}
                     alt=""
                     width={112}
@@ -57,7 +57,7 @@ export function AboutSection({
           {insetImage && (
             <div className="absolute -right-3 -bottom-8 hidden w-56 overflow-hidden rounded-2xl border-4 border-white bg-white shadow-[0_24px_60px_rgba(30,31,92,.22)] sm:block lg:-right-10">
               <div className="relative aspect-[4/3]">
-                <PublicImage
+                <EditorialImage
                   src={insetImage}
                   alt=""
                   fill

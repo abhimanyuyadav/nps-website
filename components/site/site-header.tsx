@@ -104,6 +104,7 @@ export function SiteHeader({
   const [expanded, setExpanded] = useState<string | null>(null);
   const [desktopOpen, setDesktopOpen] = useState<string | null>(null);
   const [scrolled, setScrolled] = useState(false);
+  const scrollMarker = useRef<HTMLSpanElement>(null);
   const mobileDialogRef = useRef<HTMLDivElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const desktopNavRef = useRef<HTMLDivElement>(null);
@@ -175,9 +176,14 @@ export function SiteHeader({
   });
 
   useEffect(() => {
+    if (scrollMarker.current && "IntersectionObserver" in window) {
+      const observer = new IntersectionObserver(([entry]) => setScrolled(!entry.isIntersecting));
+      observer.observe(scrollMarker.current);
+      return () => observer.disconnect();
+    }
     const sync = () => setScrolled(window.scrollY > 16);
-    sync();
     window.addEventListener("scroll", sync, { passive: true });
+    sync();
     return () => window.removeEventListener("scroll", sync);
   }, []);
 
@@ -220,6 +226,11 @@ export function SiteHeader({
 
   return (
     <>
+      <span
+        ref={scrollMarker}
+        aria-hidden="true"
+        className="pointer-events-none absolute top-0 left-0 h-4 w-px"
+      />
       <div
         className={`relative z-[70] bg-[#12123a] text-[11px] text-slate-300 transition-all duration-500 ${
           scrolled ? "max-h-0 overflow-hidden opacity-0" : "max-h-16 overflow-visible opacity-100"

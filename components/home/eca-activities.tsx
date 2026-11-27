@@ -1,4 +1,4 @@
-import PublicImage from "@/components/site/public-image";
+import { EditorialImage } from "@/components/site/public-image";
 import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
 import { Reveal } from "@/components/site/reveal";
@@ -41,7 +41,7 @@ export function EcaActivities({
               <>
                 <span className="relative block aspect-[16/10] overflow-hidden bg-slate-100">
                   {activity.imageUrl ? (
-                    <PublicImage
+                    <EditorialImage
                       src={activity.imageUrl}
                       alt={alt}
                       fill

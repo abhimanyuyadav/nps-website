@@ -1,4 +1,4 @@
-import PublicImage from "@/components/site/public-image";
+import { EditorialImage } from "@/components/site/public-image";
 import Link from "next/link";
 import { Images } from "lucide-react";
 import { Reveal } from "@/components/site/reveal";
@@ -69,7 +69,7 @@ export function GalleryPreview({
                 href={tile.href}
                 className="media-zoom group relative block h-full w-full overflow-hidden rounded-2xl bg-slate-200"
               >
-                <PublicImage
+                <EditorialImage
                   src={tile.imageUrl}
                   alt={tile.title}
                   fill

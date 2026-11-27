@@ -1,4 +1,4 @@
-import PublicImage from "@/components/site/public-image";
+import { EditorialImage } from "@/components/site/public-image";
 import Link from "next/link";
 import { ArrowRight, Bell, CalendarDays, MapPin, Newspaper } from "lucide-react";
 import { Reveal } from "@/components/site/reveal";
@@ -65,7 +65,7 @@ export function NewsEvents({
                   >
                     <span className="relative block aspect-[16/9] overflow-hidden bg-slate-100">
                       {lead.imageUrl ? (
-                        <PublicImage
+                        <EditorialImage
                           src={lead.imageUrl}
                           alt=""
                           fill
@@ -105,7 +105,7 @@ export function NewsEvents({
                         >
                           <span className="relative h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-slate-100">
                             {item.imageUrl ? (
-                              <PublicImage
+                              <EditorialImage
                                 src={item.imageUrl}
                                 alt=""
                                 fill
