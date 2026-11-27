@@ -8,6 +8,9 @@ export const betterAuthConfig = {
 export default {
   providers: [
     ...betterAuthConfig.providers,
+    ...(process.env.WORKFLOW_JWKS && process.env.SCHOOL_CLERK_ISSUER
+      ? [{ domain: process.env.SCHOOL_CLERK_ISSUER, applicationID: "convex" }]
+      : []),
     ...(process.env.WORKFLOW_JWKS
       ? [
           {

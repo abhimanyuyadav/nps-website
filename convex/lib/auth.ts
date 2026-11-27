@@ -14,6 +14,8 @@ function normalizedIssuer(value: string): string {
 
 export function isClerkStaffIdentity(identity: UserIdentity): boolean {
   const configuredIssuer = process.env.CLERK_JWT_ISSUER_DOMAIN;
+  const schoolIssuer = process.env.SCHOOL_CLERK_ISSUER;
+  if (process.env.WORKFLOW_JWKS && schoolIssuer && normalizedIssuer(identity.issuer) === normalizedIssuer(schoolIssuer)) return true;
   if (!configuredIssuer?.trim()) return false;
   return normalizedIssuer(identity.issuer) === normalizedIssuer(configuredIssuer);
 }
@@ -34,6 +36,8 @@ export async function currentUser(ctx: AuthContext): Promise<Doc<"users"> | null
     .withIndex("by_clerk_user_id", (q) => q.eq("clerkUserId", identity.subject))
     .unique();
   if (!profile || !process.env.WORKFLOW_JWKS) return profile;
+  const schoolIssuer = process.env.SCHOOL_CLERK_ISSUER;
+  if (schoolIssuer && normalizedIssuer(identity.issuer) === normalizedIssuer(schoolIssuer)) return profile;
   const roles = Array.isArray(identity.roles)
     ? identity.roles.filter(
         (r): r is StaffRole => r === "admin" || r === "publisher" || r === "editor" || r === "admissions",

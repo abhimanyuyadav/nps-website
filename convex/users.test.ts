@@ -1,5 +1,5 @@
 import { convexTest } from "convex-test";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { api } from "./_generated/api";
 import schema from "./schema";
 import { modules } from "./test.setup";
@@ -135,5 +135,36 @@ describe("first-administrator bootstrap", () => {
     await expect(caller.mutation(api.users.bootstrapFirstAdmin, {})).rejects.toThrow(
       "An admin already exists",
     );
+  });
+});
+
+describe("independent school administrator access", () => {
+  it("checks the migrated roster and preserves a suspension during synchronization", async () => {
+    vi.stubEnv("SCHOOL_CLERK_ISSUER", "https://school.example.test");
+    vi.stubEnv("WORKFLOW_JWKS", "configured");
+    try {
+      const t = convexTest(schema, modules);
+      const caller = t.withIdentity({
+        issuer: "https://school.example.test",
+        subject: "staff-member",
+        email: "staff@example.test",
+        roles: ["admin"],
+      });
+      const id = await caller.mutation(api.users.syncCurrent, {});
+      await expect(caller.query(api.users.current, {})).resolves.toMatchObject({
+        roles: [], status: "pending",
+      });
+      await t.run(async (ctx) => ctx.db.patch("users", id, { roles: ["admin"], status: "active" }));
+      await expect(caller.query(api.admin.listUsers, {
+        paginationOpts: { numItems: 1, cursor: null },
+      })).resolves.toBeDefined();
+      await t.run(async (ctx) => ctx.db.patch("users", id, { roles: [], status: "suspended" }));
+      await caller.mutation(api.users.syncCurrent, {});
+      await expect(caller.query(api.admin.listUsers, {
+        paginationOpts: { numItems: 1, cursor: null },
+      })).rejects.toThrow("not active");
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 });

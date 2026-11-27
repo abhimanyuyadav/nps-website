@@ -73,7 +73,7 @@ export const syncCurrent = mutation({
       .unique();
 
     const delegation =
-      process.env.WORKFLOW_JWKS && Array.isArray(identity.roles)
+      process.env.WORKFLOW_JWKS && !process.env.SCHOOL_CLERK_ISSUER && Array.isArray(identity.roles)
         ? {
             status: "active" as const,
             roles: identity.roles.filter(
