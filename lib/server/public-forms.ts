@@ -1,7 +1,7 @@
 import { createHmac, randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { getPublicFormConfiguration } from "./form-configuration";
-import { requestFingerprint } from "./request-security";
+import { getRequestIp, requestFingerprint } from "./request-security";
 
 const FORM_SESSION_COOKIE = "nps_form_session";
 
@@ -64,7 +64,7 @@ export async function verifyTurnstile(
   const form = new FormData();
   form.set("secret", secret);
   form.set("response", token);
-  const ip = request.headers.get("cf-connecting-ip") ?? request.headers.get("x-real-ip");
+  const ip = getRequestIp(request);
   if (ip) form.set("remoteip", ip);
 
   try {

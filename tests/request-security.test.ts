@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { getRequestIp, requestFingerprint, safeSameOriginPath } from "@/lib/server/request-security";
 import { signPublicFormPayload } from "@/lib/server/public-forms";
@@ -13,6 +13,11 @@ describe("safeSameOriginPath", () => {
     expect(safeSameOriginPath("/notices/admission-open")).toBe("/notices/admission-open");
   });
 
+  it("preserves queries and fragments and rejects non-web path separators", () => {
+    expect(safeSameOriginPath("/gallery?view=all#photos")).toBe("/gallery?view=all#photos");
+    expect(safeSameOriginPath("/school\\archive")).toBeNull();
+  });
+
   it("rejects protocol-relative and external destinations", () => {
     expect(safeSameOriginPath("//malicious.example/path")).toBeNull();
     expect(safeSameOriginPath("https://malicious.example/path")).toBeNull();
@@ -21,10 +26,25 @@ describe("safeSameOriginPath", () => {
 });
 
 describe("requestFingerprint", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("omits unavailable or invalid platform addresses", () => {
+    vi.stubEnv("VERCEL", "1");
+    const request = new NextRequest("https://school.example/");
+    expect(getRequestIp(request)).toBeNull();
+    request.headers.set("x-vercel-forwarded-for", "unavailable");
+    expect(getRequestIp(request)).toBeNull();
+    request.headers.set("x-vercel-forwarded-for", "2001:db8::1");
+    expect(getRequestIp(request)).toBe("2001:db8::1");
+    vi.stubEnv("VERCEL", "");
+    expect(getRequestIp(request)).toBeNull();
+  });
   it("uses the trusted forwarding address and produces a stable HMAC", () => {
+    vi.stubEnv("VERCEL", "1");
     const request = new NextRequest("https://school.example/api/forms/contact", {
       headers: {
-        "cf-connecting-ip": "203.0.113.10",
+        "x-vercel-forwarded-for": "203.0.113.10",
+        "cf-connecting-ip": "192.0.2.1",
         "x-forwarded-for": "198.51.100.20, 198.51.100.21",
         "user-agent": "test-agent",
       },
