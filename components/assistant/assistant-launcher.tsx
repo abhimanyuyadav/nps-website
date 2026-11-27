@@ -81,7 +81,7 @@ function FloatingAssistantLauncher() {
         onClick={toggle}
         aria-expanded={open}
         aria-controls={hasOpened ? "nps-assistant-dialog" : undefined}
-        aria-label={open ? "Close NPS assistant" : "Open NPS assistant"}
+        aria-label={open ? "Close Ask NPS" : "Ask NPS"}
       >
         {open ? <X size={20} aria-hidden="true" /> : <Bot size={20} aria-hidden="true" />}
         <span className="hidden sm:inline">Ask NPS</span>

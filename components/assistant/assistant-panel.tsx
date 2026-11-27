@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { VoiceCommand } from "./voice-command";
 import { useRouter } from "next/navigation";
-import { FormEvent, useEffect, useId, useRef, useState } from "react";
+import { FormEvent, useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
 import {
   Bot,
   Check,
@@ -26,6 +26,14 @@ const suggestions = [
   "List all pages",
   "What academic programmes are available?",
 ];
+
+function subscribeToLanguage(change: () => void) {
+  window.addEventListener("languagechange", change);
+  return () => window.removeEventListener("languagechange", change);
+}
+
+const browserVoiceLanguage = () => (navigator.language?.toLowerCase().startsWith("ne") ? "ne-NP" : "en-US");
+const serverVoiceLanguage = () => "en-US";
 
 export function AssistantPanel({
   onClose,
@@ -52,10 +60,13 @@ export function AssistantPanel({
   ]);
   const [value, setValue] = useState("");
   const [busy, setBusy] = useState(false);
-  const [voiceLanguage, setVoiceLanguage] = useState("en-US");
-  useEffect(() => {
-    if (navigator.language?.toLowerCase().startsWith("ne")) setVoiceLanguage("ne-NP");
-  }, []);
+  const defaultVoiceLanguage = useSyncExternalStore(
+    subscribeToLanguage,
+    browserVoiceLanguage,
+    serverVoiceLanguage,
+  );
+  const [selectedLanguage, setVoiceLanguage] = useState<string>();
+  const voiceLanguage = selectedLanguage ?? defaultVoiceLanguage;
   const [error, setError] = useState<string | null>(null);
   const [failedQuestion, setFailedQuestion] = useState<string | null>(null);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);

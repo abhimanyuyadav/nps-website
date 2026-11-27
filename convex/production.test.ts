@@ -43,6 +43,51 @@ describe("production authorization boundaries", () => {
     ).rejects.toThrow();
   });
 
+  it("keeps a family's admission record visible only to staff with admissions access", async () => {
+    const t = convexTest(schema, modules);
+    await insertUser(t, "teacher", ["editor"]);
+    await insertUser(t, "intake", ["admissions"]);
+    const intake = t.withIdentity({ subject: "intake" });
+    const teacher = t.withIdentity({ subject: "teacher" });
+    // This fixture uses the workflow deployment's intake path without making a network request.
+    vi.stubEnv("SCHOOL_CONTENT_URL", "https://example.test");
+    try {
+      const confirmation = await t.mutation(internal.forms.submitAdmission, {
+        fingerprint: "fictional-family-browser",
+        idempotencyKey: "fixture-application",
+        academicYear: "2083",
+        desiredGrade: "6",
+        student: { firstName: "Example", lastName: "Student", dateOfBirth: Date.UTC(2014, 0, 1) },
+        guardian: {
+          name: "Example Parent",
+          relationship: "Parent",
+          email: "family@example.test",
+          phone: "0000000000",
+          address: "Test address",
+        },
+        consent: true,
+      });
+      expect(confirmation).toEqual({ ok: true, applicationNumber: expect.any(String) });
+    } finally {
+      vi.unstubAllEnvs();
+    }
+    const id = await t.run(async (ctx) => (await ctx.db.query("admissions").first())!._id);
+    const jobs = await t.run(async (ctx) => ctx.db.query("jobs").collect());
+    expect(jobs.find((job) => job.type === "admission_receipt")?.payload).toMatchObject({
+      recipient: "family@example.test",
+    });
+    const detail = { type: "admissions" as const, id };
+    const list = { type: "admissions" as const, paginationOpts: { numItems: 10, cursor: null } };
+    for (const viewer of [t, teacher]) {
+      await expect(viewer.query(api.admin.listSubmissions, list)).rejects.toThrow();
+      await expect(viewer.query(api.admin.getSubmission, detail)).rejects.toThrow();
+    }
+    expect((await intake.query(api.admin.listSubmissions, list)).page).toMatchObject([{ _id: id }]);
+    expect(await intake.query(api.admin.getSubmission, detail)).toMatchObject({
+      guardian: { email: "family@example.test" },
+    });
+  });
+
   it("does not let staff bypass newsletter double opt-in", async () => {
     const t = convexTest(schema, modules);
     await insertUser(t, "admin-user", ["admin"]);

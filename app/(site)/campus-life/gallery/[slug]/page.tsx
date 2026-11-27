@@ -62,11 +62,11 @@ export default async function GalleryAlbumPage({ params }: { params: Promise<{ s
                       </video>
                     ) : (
                       <PublicImage
-                        src={item.url}
+                        src={item.thumbnailUrl || item.url}
                         alt={item.alt}
                         fill
                         className="object-cover"
-                        sizes="(max-width: 768px) 100vw, 33vw"
+                        sizes="(min-width: 1280px) 390px, (min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
                       />
                     )}
                   </div>

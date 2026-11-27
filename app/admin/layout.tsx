@@ -1,7 +1,10 @@
+import type { Metadata } from "next";
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { StaffProviders } from "@/app/providers";
+
+export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 export const dynamic = "force-dynamic";
 

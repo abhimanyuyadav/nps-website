@@ -1,8 +1,4 @@
-@import "@fontsource/manrope/400.css";
-@import "@fontsource/manrope/500.css";
-@import "@fontsource/manrope/600.css";
-@import "@fontsource/manrope/700.css";
-@import "@fontsource/manrope/800.css";
+@import "@fontsource-variable/manrope";
 @import "tailwindcss";
 
 /* --------------------------------------------------------------------------
@@ -70,7 +66,7 @@ body {
   overflow-x: clip;
   background: var(--page);
   color: var(--ink);
-  font-family: "Manrope", "Inter", Arial, Helvetica, sans-serif;
+  font-family: "Manrope Variable", "Inter", Arial, Helvetica, sans-serif;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
 }
@@ -157,7 +153,7 @@ img {
 /* --------------------------------------------------------------------------
    Motion system
    Scroll reveals are driven by IntersectionObserver in components/site/reveal.tsx,
-   which adds `is-visible`. Everything degrades to a static layout without JS
+   which sets the revealed attribute. Everything degrades to a static layout without JS
    (see the <noscript> rule in app/layout.tsx) and under reduced-motion.
    -------------------------------------------------------------------------- */
 
@@ -186,7 +182,7 @@ img {
   transform: none;
 }
 
-.reveal.is-visible {
+.reveal[data-revealed="true"] {
   opacity: 1;
   transform: none;
   will-change: auto;
@@ -279,8 +275,8 @@ img {
   transition: transform 900ms var(--ease-out-expo) 120ms;
 }
 
-.is-visible .rule-sweep,
-.rule-sweep.is-visible {
+[data-revealed="true"] .rule-sweep,
+.rule-sweep[data-revealed="true"] {
   transform: scaleX(1);
 }
 

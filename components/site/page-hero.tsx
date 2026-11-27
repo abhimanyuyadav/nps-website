@@ -25,8 +25,9 @@ export function PageHero({
         src={image}
         alt={imageAlt}
         fill
-        preload
-        decoding="sync"
+        loading="eager"
+        fetchPriority="high"
+        decoding="async"
         quality={65}
         className="-z-20 object-cover"
         sizes="100vw"

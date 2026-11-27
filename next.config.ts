@@ -56,7 +56,25 @@ const nextConfig: NextConfig = {
     ],
   },
   async headers() {
-    return [{ source: "/(.*)", headers: securityHeaders }];
+    const privatePages = [
+      "/admin/:path*",
+      "/student/:path*",
+      "/sign-in/:path*",
+      "/api/auth/:path*",
+      "/newsletter/confirm",
+      "/newsletter/unsubscribe",
+      "/events/cancel",
+    ];
+    return [
+      { source: "/(.*)", headers: securityHeaders },
+      ...privatePages.map((source) => ({
+        source,
+        headers: [
+          { key: "Referrer-Policy", value: "no-referrer" },
+          { key: "X-Robots-Tag", value: "noindex, nofollow" },
+        ],
+      })),
+    ];
   },
   async redirects() {
     return [

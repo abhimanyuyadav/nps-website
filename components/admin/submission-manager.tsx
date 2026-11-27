@@ -592,6 +592,6 @@ function exportRegistrationCsv(records: AdminRecord[]) {
 
 function csvCell(value: unknown) {
   let text = String(value ?? "");
-  if (/^[=+\-@]/.test(text)) text = `'${text}`;
+  if (/^[=+\-@]/.test(text.trimStart()) || /^[\t\r\n]/.test(text)) text = `'${text}`;
   return `"${text.replaceAll('"', '""')}"`;
 }

@@ -11,7 +11,14 @@ const schemaOptions = createAuthOptions({} as never, {
   secret: "schema-generation-placeholder-not-a-runtime-secret",
 });
 
-export const { create, findOne, findMany, updateOne, updateMany, deleteOne, deleteMany } = createApi(
-  schema,
-  () => schemaOptions,
-);
+export const {
+  create,
+  findOne,
+  findMany,
+  updateOne,
+  updateMany,
+  deleteOne,
+  deleteMany,
+  consumeOne,
+  incrementOne,
+} = createApi(schema, () => schemaOptions);

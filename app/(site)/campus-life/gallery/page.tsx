@@ -41,7 +41,7 @@ export default async function GalleryPage() {
                         alt=""
                         fill
                         className="object-cover transition duration-500 group-hover:scale-[1.03]"
-                        sizes="(max-width: 768px) 100vw, 33vw"
+                        sizes="(min-width: 1280px) 390px, (min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
                       />
                     ) : (
                       <span className="grid h-full place-items-center text-slate-300">

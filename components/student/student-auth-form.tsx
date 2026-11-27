@@ -51,8 +51,9 @@ export function StudentAuthForm({
 
     setSubmitting(true);
     try {
+      const registration = { name, email, password, termsAccepted: true };
       const result = register
-        ? await authClient.signUp.email({ name, email, password, termsAccepted: true })
+        ? await authClient.signUp.email(registration)
         : await authClient.signIn.email({ email, password });
       if (result.error) {
         setError(safeAuthError(result.error, register));

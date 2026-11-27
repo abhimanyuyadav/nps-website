@@ -16,19 +16,11 @@ export function useArticleCover(mode: Mode, id?: string) {
   const [loaded, setLoaded] = useState<string | null>(null);
   const [retry, setRetry] = useState(0);
   useEffect(() => {
-    if (!file) {
-      setPreview("");
-      return;
-    }
-    const url = URL.createObjectURL(file);
-    setPreview(url);
-    return () => URL.revokeObjectURL(url);
-  }, [file]);
+    if (preview) return () => URL.revokeObjectURL(preview);
+  }, [preview]);
   useEffect(() => {
     if (!id) return;
     const controller = new AbortController();
-    setLoaded(null);
-    setError("");
     fetch(endpoint(mode, id), { cache: "no-store", signal: controller.signal })
       .then(async (r) => {
         if (!r.ok) throw Error();
@@ -45,6 +37,7 @@ export function useArticleCover(mode: Mode, id?: string) {
   }, [mode, id, retry]);
   function choose(value: File | null) {
     setFile(null);
+    setPreview("");
     setError("");
     if (
       value &&
@@ -54,6 +47,7 @@ export function useArticleCover(mode: Mode, id?: string) {
       return;
     }
     setFile(value);
+    if (value) setPreview(URL.createObjectURL(value));
   }
   async function save(articleId: string) {
     if (!file && mode === "student") return;
@@ -84,6 +78,7 @@ export function useArticleCover(mode: Mode, id?: string) {
     setPending(result);
     setLoaded(articleId);
     setFile(null);
+    setPreview("");
     setAlt("");
     setError("");
   }
@@ -92,12 +87,16 @@ export function useArticleCover(mode: Mode, id?: string) {
     choose,
     alt,
     setAlt,
-    pending,
+    pending: loaded === id ? pending : null,
     preview,
     error,
     loaded,
     save,
-    reload: () => setRetry((n) => n + 1),
+    reload: () => {
+      setLoaded(null);
+      setError("");
+      setRetry((n) => n + 1);
+    },
   };
 }
 export function ArticleCoverField({

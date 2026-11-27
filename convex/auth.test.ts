@@ -39,14 +39,13 @@ describe("student registration terms", () => {
 
     await t.run(async (ctx) => {
       const auth = createAuth(ctx);
-      await auth.api.signUpEmail({
-        body: {
-          name: "Accepted Student",
-          email: "accepted@example.com",
-          password: "a-secure-student-password",
-          termsAccepted: true,
-        },
-      });
+      const acceptedRegistration = {
+        name: "Accepted Student",
+        email: "accepted@example.com",
+        password: "a-secure-student-password",
+        termsAccepted: true,
+      };
+      await auth.api.signUpEmail({ body: acceptedRegistration });
     });
 
     const profile = await t.run(async (ctx) =>
