@@ -19,14 +19,14 @@ export async function POST(request: Request) {
     const result = await fetchMutation(confirmNewsletter, parsed.data, {
       url: parsed.data.token.startsWith("nps2_")
         ? process.env.NEXT_PUBLIC_WORKFLOW_CONVEX_URL || convexUrl
-        : convexUrl,
+        : process.env.NEXT_PUBLIC_ARCHIVE_CONVEX_URL || convexUrl,
     });
     return NextResponse.json(result, { headers: { "Cache-Control": "no-store" } });
   } catch {
     return NextResponse.json(
       {
         error:
-          "This link doesn’t work or has expired. Check that you opened the full link from the school’s email.",
+          "This link doesnâ€™t work or has expired. Check that you opened the full link from the schoolâ€™s email.",
       },
       { status: 400 },
     );
