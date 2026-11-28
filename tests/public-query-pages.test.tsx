@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const data = vi.hoisted(() => ({
   getCmsPages: vi.fn(),
+  getSearchCatalogue: vi.fn(),
   getDepartments: vi.fn(),
   getEvents: vi.fn(),
   getFacilities: vi.fn(),
@@ -22,6 +23,7 @@ vi.mock("@/components/site/page-hero", () => ({
 }));
 vi.mock("@/lib/content/public-metadata", () => ({ contentMetadata: () => ({}) }));
 
+import { canonicalPublicHref } from "@/lib/content/canonical-public-href";
 import SearchPage from "@/app/(site)/search/page";
 import NoticesPage from "@/app/(site)/notices/page";
 import FaqPage from "@/app/(site)/admissions/faq/page";
@@ -32,6 +34,7 @@ beforeEach(() => {
   for (const name of Object.keys(data) as Array<keyof typeof data>) {
     if (name !== "formatPublicDate") data[name].mockResolvedValue([]);
   }
+  data.getSearchCatalogue.mockResolvedValue([{title:"School notice",description:"Published school information",type:"Notice",href:"/notices/school-notice"}]);
   data.getNotices.mockResolvedValue([
     {
       id: "notice",
@@ -111,4 +114,21 @@ describe("repeated public URL filters", () => {
     expect(screen.getByRole("link", { name: "Clear category filter" })).toHaveAttribute("href", "/downloads");
     expect(screen.queryByText("No published documents")).not.toBeInTheDocument();
   });
+});
+
+it("keeps a school menu filter when search rewrites an old department link", async () => {
+  data.getSearchCatalogue.mockResolvedValue([{ type:"Page",description:"Directory",title: "School science", href: "/academics/departments/science?tab=staff#contact", external: false }]);
+  render(await SearchPage({ searchParams: Promise.resolve({ q: "science" }) }));
+  expect(screen.getByRole("link", { name: /School science/ })).toHaveAttribute("href", "/departments/science?tab=staff#contact");
+});
+
+it.each([
+  ["/about/history/?lang=ne", "/about?lang=ne#history"],
+  ["/about/history#timeline", "/about#timeline"],
+  ["/academics/downloads/", "/downloads"],
+  ["/academics/faculty", "/departments"],
+  ["/events?year=2026#late", "/events?year=2026#late"],
+  ["//external.example/path", "//external.example/path"],
+])("preserves the destination of %s", (link, expected) => {
+  expect(canonicalPublicHref(link)).toBe(expected);
 });

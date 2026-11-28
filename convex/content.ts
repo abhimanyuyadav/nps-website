@@ -1,7 +1,10 @@
+import { paginationResultValidator } from "convex/server";
+import { paginationOptsValidator, boundedPaginationOpts } from "./lib/validators";
 import { v } from "convex/values";
 import { internalQuery, query } from "./_generated/server";
 import type { QueryCtx } from "./_generated/server";
 import type { Doc } from "./_generated/dataModel";
+import { attendeeCount } from "./lib/eventCapacity";
 import { facilityIconKeyValidator, facilityVerificationStatusValidator } from "./schema";
 
 const contentStatusValidator = v.union(
@@ -828,6 +831,74 @@ export const listNavigation = query({
   },
 });
 
+// Search projections contain only fields displayed in the public results.
+export const listSearchEntries = query({
+  args: { collection:v.union(v.literal("navigationItems"),v.literal("pages"),v.literal("programs"),
+    v.literal("departments"),v.literal("facilities"),v.literal("news"),v.literal("notices"),
+    v.literal("events"),v.literal("articles"),v.literal("teachers"),v.literal("faqs")),
+    paginationOpts:paginationOptsValidator },
+  returns: paginationResultValidator(v.object({ title:v.string(), description:v.string(), href:v.string(), type:v.string() })),
+  handler:async(ctx,{collection,paginationOpts})=>{
+    const opts=boundedPaginationOpts(paginationOpts);
+    const entry=(type:string,title:string,description:string,href:string)=>({type,title,description,href});
+    if(collection==="navigationItems"){
+      const slice=await ctx.db.query("navigationItems").paginate(opts);
+      return {...slice,page:slice.page.filter(r=>r.visible && !r.external && !r.requiredRole && r.href.startsWith("/") && !r.href.startsWith("//"))
+        .map(r=>entry("Page",r.label,r.description??r.label,r.href))};
+    }
+    if(collection==="articles"){
+      const slice=await ctx.db.query("articles").withIndex("by_status_and_published_at",q=>q.eq("status","published")).order("desc").paginate(opts);
+      return {...slice,page:slice.page.flatMap(r=>r.slug && r.publishedAt!==undefined ? [entry("Student article",r.title,r.excerpt,"/articles/"+r.slug)] : [])};
+    }
+    const slice=await ctx.db.query(collection).withIndex("by_status",q=>q.eq("status","published")).paginate(opts);
+    const clock=collection==="notices" ? await publicationNow(ctx) : undefined;
+    const page=await Promise.all(slice.page.map(async r=>{
+      if("question" in r) return entry("FAQ",r.question,r.answer,"/admissions/faq?q="+encodeURIComponent(r.question));
+      if("template" in r || collection==="pages" && "body" in r && !("priority" in r) && !("excerpt" in r))
+        return entry("Page",r.title,r.summary??r.body.slice(0,220),"/"+r.slug);
+      if("shortDescription" in r) return entry("Programme",r.name,r.shortDescription,"/academics#"+r.slug);
+      if("responsibilities" in r) return entry("Department",r.name,r.description,"/departments/"+r.slug);
+      if("iconKey" in r) return entry("Facility",r.name,[r.summary,r.details].filter(Boolean).join(" "),"/facilities#"+r.slug);
+      if("excerpt" in r) return entry("News",r.title,r.excerpt,"/news/"+r.slug);
+      if("priority" in r){
+        if(r.startAt!==undefined && (clock===undefined || r.startAt>clock)) return null;
+        return entry("Notice",r.title,r.summary??"Open this update for the complete information.","/notices/"+r.slug);
+      }
+      if("registrationEnabled" in r) return entry("Event",r.title,r.summary??"Open this update for the complete information.","/events/"+r.slug);
+      if("qualifications" in r){
+        const d=r.departmentId?await ctx.db.get("departments",r.departmentId):null;
+        return entry("Teacher",r.name,r.title+" · "+(d?.status==="published"?d.name:"Faculty"),"/teachers/"+r.slug);
+      }
+      return null;
+    }));
+    return {...slice,page:page.filter(r=>r!==null)};
+  },
+});
+
+// Paginate before visibility filtering so an empty page may still have a successor.
+export const listDiscoveryRoutes = query({
+  args: {
+    collection: v.union(v.literal("pages"), v.literal("departments"), v.literal("teachers"),
+      v.literal("leadership"), v.literal("news"), v.literal("notices"), v.literal("events"), v.literal("galleryAlbums")),
+    paginationOpts: paginationOptsValidator,
+  },
+  returns: paginationResultValidator(v.object({
+    slug: v.string(), noIndex: v.boolean(), lastModified: v.optional(v.number()),
+  })),
+  handler: async (ctx, { collection, paginationOpts }) => {
+    const rows = await ctx.db.query(collection)
+      .withIndex("by_status", q => q.eq("status", "published"))
+      .paginate(boundedPaginationOpts(paginationOpts));
+    const clock = collection === "notices" ? await publicationNow(ctx) : undefined;
+    return { ...rows, page: rows.page.flatMap(row => {
+      if (!row.slug) return [];
+      if (collection === "notices" && "startAt" in row && row.startAt !== undefined &&
+          (clock === undefined || row.startAt > clock)) return [];
+      return [{slug: row.slug, noIndex: "seo" in row && row.seo.noIndex === true, lastModified: row.updatedAt}];
+    }) };
+  },
+});
+
 export const listPages = query({
   args: { featured: v.optional(v.boolean()), limit: v.optional(v.number()), now: v.optional(v.number()) },
   returns: v.array(publicPageValidator),
@@ -1219,7 +1290,7 @@ export const listEvents = query({
 });
 
 export const getEvent = query({
-  args: { slug: v.string(), now: v.optional(v.number()) },
+  args: { slug: v.string(), now: v.optional(v.number()), resolveCapacity: v.optional(v.boolean()) },
   returns: v.union(v.null(), publicEventValidator),
   handler: async (ctx, args) => {
     const row = await ctx.db
@@ -1227,7 +1298,11 @@ export const getEvent = query({
       .withIndex("by_slug", (q) => q.eq("slug", args.slug))
       .unique();
     if (!row || !isPublished(row)) return null;
-    return publicEvent(row, await storageUrl(ctx, row.featuredImageId, row.featuredImageUrl));
+    const result = publicEvent(row, await storageUrl(ctx, row.featuredImageId, row.featuredImageUrl));
+    if (args.resolveCapacity && row.capacity !== undefined && row.registeredAttendeeCount === undefined) {
+      result.registeredAttendeeCount = await attendeeCount(ctx, row);
+    }
+    return result;
   },
 });
 

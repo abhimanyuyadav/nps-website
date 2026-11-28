@@ -1,4 +1,5 @@
 import "server-only";
+import { searchCollections, type SearchCollection, type SearchEntry, type DiscoveryCollection, type DiscoveryRoute } from "../content/discovery";
 import { validTimeZone } from "@/lib/content/public-dates";
 export { formatPublicDate, formatEventDateTimeRange } from "@/lib/content/public-dates";
 
@@ -7,7 +8,6 @@ import { makeFunctionReference } from "convex/server";
 import { unstable_cache } from "next/cache";
 import { cache } from "react";
 import { normalizeAcademicYear } from "@/lib/content/academic-year";
-import { studentArticleCover } from "@/lib/content/student-article-covers";
 
 export type SiteProfile = {
   schoolName: string;
@@ -566,11 +566,6 @@ function normalizePost(item: UnknownRecord, index: number): PublicPost {
 
 function normalizeStudentArticle(item: UnknownRecord, index: number): PublicStudentArticle {
   const slug = text(item.slug, `student-article-${index + 1}`);
-  const cover = studentArticleCover(
-    slug,
-    optionalText(item.featuredImageUrl ?? item.imageUrl),
-    optionalText(item.featuredImageAlt ?? item.imageAlt),
-  );
   return {
     id: slug,
     slug,
@@ -579,8 +574,8 @@ function normalizeStudentArticle(item: UnknownRecord, index: number): PublicStud
     category: text(item.category, "Student writing"),
     tags: stringList(item.tags),
     authorName: text(item.authorName ?? item.byline, "Student contributor"),
-    featuredImageUrl: cover?.url,
-    featuredImageAlt: cover?.alt,
+    featuredImageUrl: optionalText(item.featuredImageUrl ?? item.imageUrl),
+    featuredImageAlt: optionalText(item.featuredImageAlt ?? item.imageAlt),
     featured: item.featured === true,
     publishedAt: dateValue(item.publishedAt),
     updatedAt: dateValue(item.updatedAt),
@@ -792,6 +787,54 @@ const readArticleQuery = cache(async (name: string, serializedArgs: string): Pro
     { url },
   );
 });
+
+async function readCatalogue<T>(url: string, name: string, collection: string, fresh = false) {
+  let cursor: string | null = null;
+  const entries: T[] = [];
+  do {
+    const args = JSON.stringify({ collection, paginationOpts: { numItems: 100, cursor } });
+    const page = (fresh ? await readArticleQuery(name, args) : await loadPublicQuery(url, name, args)) as {
+      page: T[];
+      isDone: boolean;
+      continueCursor: string;
+    };
+    entries.push(...page.page);
+    if (page.isDone) break;
+    if (!page.continueCursor || page.continueCursor === cursor)
+      throw new Error("The discovery cursor did not advance.");
+    cursor = page.continueCursor;
+  } while (cursor);
+  return entries;
+}
+
+export async function getDiscoveryRoutes(collection: DiscoveryCollection): Promise<DiscoveryRoute[]> {
+  const url = process.env.NEXT_PUBLIC_CONVEX_URL;
+  return url ? readCatalogue<DiscoveryRoute>(url, "content:listDiscoveryRoutes", collection) : [];
+}
+
+// The cache key is the backend and collection. A new search term can reuse the
+// same compact public catalogue. Underlying cursor pages are cached independently.
+const searchCollection = unstable_cache(
+  async (url: string, collection: SearchCollection) =>
+    readCatalogue<SearchEntry>(url, "content:listSearchEntries", collection),
+  ["public-search-collection-v1"],
+  { revalidate: PUBLIC_CONTENT_REVALIDATE_SECONDS, tags: ["public-content"] },
+);
+
+export async function getSearchCatalogue() {
+  const url = process.env.NEXT_PUBLIC_CONVEX_URL;
+  return url
+    ? (
+        await Promise.all(
+          searchCollections.map((collection) =>
+            collection === "articles"
+              ? readCatalogue<SearchEntry>(url, "content:listSearchEntries", collection, true)
+              : searchCollection(url, collection),
+          ),
+        )
+      ).flat()
+    : [];
+}
 
 export async function getStudentArticlePage(limit = 25, cursor: string | null = null) {
   const result = (await readArticleQuery(

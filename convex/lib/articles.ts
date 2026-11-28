@@ -120,8 +120,8 @@ export async function toPublicArticleSummary(ctx: ArticleReadContext, article: D
     authorName: article.authorNameSnapshot ?? "Student contributor",
     featuredImageUrl: article.featuredImageId
       ? ((await ctx.storage.getUrl(article.featuredImageId)) ?? undefined)
-      : undefined,
-    featuredImageAlt: article.featuredImageAlt,
+      : article.editorialCover?.url,
+    featuredImageAlt: article.featuredImageId ? article.featuredImageAlt : article.editorialCover?.alt,
     featured: article.featured,
     publishedAt: article.publishedAt,
     updatedAt: article.updatedAt,
@@ -145,8 +145,8 @@ export async function toAdminArticleSummary(
     slug: article.slug,
     featuredImageUrl: article.featuredImageId
       ? ((await ctx.storage.getUrl(article.featuredImageId)) ?? undefined)
-      : undefined,
-    featuredImageAlt: article.featuredImageAlt,
+      : article.editorialCover?.url,
+    featuredImageAlt: article.featuredImageId ? article.featuredImageAlt : article.editorialCover?.alt,
     featured: article.featured,
     submittedAt: article.submittedAt,
     reviewedAt: article.reviewedAt,

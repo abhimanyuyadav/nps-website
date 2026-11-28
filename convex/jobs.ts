@@ -1,7 +1,8 @@
-import { ConvexError, v } from "convex/values";
+import { ConvexError, type Infer, v } from "convex/values";
 import { internalAction, internalMutation, internalQuery } from "./_generated/server";
 import { components, internal } from "./_generated/api";
 import { writeAudit } from "./lib/audit";
+import { occupiesSeats, storeAttendeeCount } from "./lib/eventCapacity";
 import { schoolRetentionDays } from "./lib/schoolRetention";
 import { enqueueJob } from "./lib/jobs";
 import { shortHash } from "./lib/input";
@@ -154,6 +155,28 @@ const notificationDataValidator = v.union(
   }),
 );
 
+// The built-in mail renderer needs fewer fields than a custom notification receiver.
+function schoolMailData(kind: string, data: Infer<typeof notificationDataValidator>) {
+  if ("ticketNumber" in data) return { ticketNumber: data.ticketNumber };
+  if ("applicationNumber" in data) return { applicationNumber: data.applicationNumber };
+  if ("reference" in data) {
+    return kind === "school_form_alert"
+      ? { reference: data.reference }
+      : { reference: data.reference, formTitle: data.formTitle };
+  }
+  if ("confirmationToken" in data) return { confirmationToken: data.confirmationToken };
+  if ("bodyText" in data) {
+    return { subject: data.subject, bodyText: data.bodyText, unsubscribeToken: data.unsubscribeToken };
+  }
+  return {
+    registrationNumber: data.registrationNumber,
+    status: data.status,
+    event: { title: data.event.title },
+    cancellationToken:
+      data.status === "registered" || data.status === "waitlisted" ? data.cancellationToken : undefined,
+  };
+}
+
 const notificationContextValidator = v.object({
   suppressed: v.optional(v.boolean()),
   recipient: v.optional(v.string()),
@@ -229,7 +252,7 @@ function notificationWebhookUrl(raw: string): string {
     .map((host) => host.trim().toLowerCase().replace(/\.$/, ""))
     .filter(Boolean);
   const hostname = url.hostname.toLowerCase().replace(/\.$/, "");
-  if (allowlist.length > 0 && !allowlist.includes(hostname)) {
+  if (!allowlist.includes(hostname)) {
     throw new Error("NON_RETRYABLE: notification webhook host is not allowlisted.");
   }
   return url.toString();
@@ -761,10 +784,11 @@ export const processOne = internalAction({
             return null;
           }
           const webhookUrl = notificationWebhookUrl(rawWebhookUrl);
-          const mail =
-            process.env.SCHOOL_MAIL_TRANSPORT === "python"
-              ? await ctx.runQuery(internal.schoolForms.mailConnection, {})
-              : null;
+          const pythonMail = process.env.SCHOOL_MAIL_TRANSPORT === "python";
+          const mail = pythonMail ? await ctx.runQuery(internal.schoolForms.mailConnection, {}) : null;
+          if (pythonMail && !mail?.sealedKey) {
+            throw new Error("RETRYABLE: school email settings are unavailable.");
+          }
           const response = await fetch(webhookUrl, {
             method: "POST",
             headers: {
@@ -776,21 +800,24 @@ export const processOne = internalAction({
               version: 1,
               type: job.type,
               idempotencyKey: job.idempotencyKey,
-              recipient: context.recipient,
-              template: context.template,
-              data: context.data,
+              recipient: mail && job.type.endsWith("_alert") ? undefined : context.recipient,
+              template: mail ? undefined : context.template,
+              data: mail ? schoolMailData(job.type, context.data) : context.data,
               ...(mail
-                ? { mail: { sender: mail.sender, staff: mail.staff, sealedKey: mail.sealedKey } }
+                ? { mail: {
+                    sender: mail.sender,
+                    staff: job.type.endsWith("_alert") ? mail.staff : undefined,
+                    sealedKey: mail.sealedKey,
+                  } }
                 : {}),
             }),
             redirect: "error",
             signal: AbortSignal.timeout(12_000),
           });
           if (!response.ok) {
-            const body = (await response.text()).slice(0, 500);
             const retryable = response.status === 408 || response.status === 429 || response.status >= 500;
             throw new Error(
-              `${retryable ? "RETRYABLE" : "NON_RETRYABLE"}: webhook returned ${response.status}: ${body}`,
+              `${retryable ? "RETRYABLE" : "NON_RETRYABLE"}: webhook returned ${response.status}.`,
             );
           }
           if (job.type === "newsletter_campaign_delivery") deliveryOutcome = "delivered";
@@ -1211,13 +1238,9 @@ export const cleanupRetention = internalMutation({
         // A cursor advances past retained registrations, so a young event can
         // never pin the cleanup loop in front of older eligible rows.
         if (event && event.endAt >= cutoff) continue;
-        if (
-          event?.registeredAttendeeCount !== undefined &&
-          (row.status === "registered" || row.status === "attended" || row.status === "no_show")
-        ) {
-          await ctx.db.patch("events", event._id, {
-            registeredAttendeeCount: Math.max(0, event.registeredAttendeeCount - row.attendees),
-          });
+        if (event && occupiesSeats(row.status)) {
+          const count = event.registeredAttendeeCount;
+          await storeAttendeeCount(ctx, event, count === undefined || count < row.attendees ? undefined : count - row.attendees);
         }
         await remove("eventRegistrations", row._id, "workflows:eventRegistrations", row.status);
       }

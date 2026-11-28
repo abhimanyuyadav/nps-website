@@ -13,23 +13,46 @@ export const coverJson = (data: unknown, status = 200) =>
 export function sameOrigin(request: Request) {
   return request.headers.get("origin") === new URL(request.url).origin;
 }
-export async function pendingCover(articleId: string, op: "read" | "write" | "clear", cover?: DraftCover) {
+export async function pendingCover(
+  articleId: string,
+  op: "read" | "write" | "clear",
+  cover?: DraftCover,
+  studentToken?: string,
+): Promise<DraftCover | null> {
   const config = getPublicFormConfiguration();
-  if (!config) throw new Error("Cover storage is unavailable.");
-  const sameDatabase =
-    config.convexUrl.replace(/\/+$/, "") === process.env.NEXT_PUBLIC_CONVEX_URL?.replace(/\/+$/, "");
-  const input = {
-    articleId,
-    op: op === "write" && sameDatabase ? ("writeLocal" as const) : op,
-    version: cover?.version ?? "",
-    image: op === "write" ? cover!.image : "",
-    alt: op === "write" ? cover!.alt : "",
-  };
-  return fetchAction(
-    api.formActions.articleCover,
-    { ...input, ...signPublicFormPayload(config.formServiceSecret, { form: "article-cover", ...input }) },
-    { url: config.convexUrl },
-  );
+  const primary = process.env.NEXT_PUBLIC_CONVEX_URL;
+  if (!config || !primary) throw new Error("Cover storage is unavailable.");
+  const { formServiceSecret } = config;
+  const split = new URL(primary).href !== new URL(config.convexUrl).href;
+  async function callStore(url: string, operation: "read" | "readPrimary" | "writeLocal" | "clear" | "clearLocal" | "clearOwn") {
+    const input = {
+      articleId,
+      op: operation,
+      version: cover?.version ?? "",
+      image: operation === "writeLocal" ? cover!.image : "",
+      alt: operation === "writeLocal" ? cover!.alt : "",
+    };
+    return fetchAction(
+      api.formActions.articleCover,
+      { ...input, ...signPublicFormPayload(formServiceSecret, { form: "article-cover", ...input }) },
+      { url, ...(url === primary && studentToken ? { token: studentToken } : {}) },
+    );
+  }
+  if (op === "write") {
+    if (!cover || !studentToken) throw new Error("Signed-in article author required.");
+    await callStore(primary, "writeLocal");
+    return null;
+  }
+  const local = await callStore(primary, split ? "readPrimary" : "read");
+  if (op === "clear") {
+    if (local === "legacy") await callStore(config.convexUrl, "clear");
+    else if (local && local.version === cover?.version)
+      await callStore(primary, studentToken ? "clearOwn" : split ? "clearLocal" : "clear");
+    return null;
+  }
+  if (local !== "legacy") return local;
+  const legacy = await callStore(config.convexUrl, "read");
+  return legacy === "legacy" ? null : legacy;
 }
 export async function readCoverUpload(request: Request): Promise<DraftCover | null> {
   try {

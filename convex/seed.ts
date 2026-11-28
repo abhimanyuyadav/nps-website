@@ -1504,6 +1504,7 @@ export const baseline = mutation({
       }
       await ctx.db.insert("events", {
         ...event,
+        registeredAttendeeCount: 0,
         createdBy: actor._id,
         updatedBy: actor._id,
         createdAt: now,

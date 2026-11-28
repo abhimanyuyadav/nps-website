@@ -1,6 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import { paginationResultValidator } from "convex/server";
-import { mutation, query } from "./_generated/server";
+import { internalQuery, mutation, query } from "./_generated/server";
 import { requireRole } from "./lib/auth";
 import { optionalMediaUrl, plainText } from "./lib/input";
 import { boundedPaginationOpts, paginationOptsValidator } from "./lib/validators";
@@ -101,18 +101,15 @@ export const finalizeUpload = mutation({
     const fileName = plainText(args.fileName, "File name", 1, 240);
     const mimeType = args.mimeType.trim().toLowerCase();
     if (!allowedMimeType(mimeType)) {
-      await ctx.storage.delete(args.storageId);
       throw new ConvexError({ code: "UNSUPPORTED_MEDIA", message: "This file type is not supported." });
     }
     if (!Number.isSafeInteger(args.size) || args.size <= 0 || args.size > MAX_FILE_SIZE) {
-      await ctx.storage.delete(args.storageId);
       throw new ConvexError({ code: "FILE_TOO_LARGE", message: "Files must be 50 MB or smaller." });
     }
     const metadata = await ctx.db.system.get("_storage", args.storageId);
     if (!metadata)
       throw new ConvexError({ code: "UPLOAD_MISSING", message: "The uploaded file was not found." });
     if (metadata.size !== args.size || (metadata.contentType && metadata.contentType !== mimeType)) {
-      await ctx.storage.delete(args.storageId);
       throw new ConvexError({ code: "UPLOAD_MISMATCH", message: "Uploaded file metadata did not match." });
     }
     const existing = await ctx.db
@@ -402,5 +399,24 @@ export const deleteGalleryItem = mutation({
       summary: "Deleted a gallery item.",
     });
     return { ok: true };
+  },
+});
+
+// Operator-only inventory. Unregistered storage can include private article
+// drafts and other legitimate files. Never infer abandonment or delete bytes.
+export const inventoryStoragePage = internalQuery({
+  args: { paginationOpts: paginationOptsValidator },
+  returns: v.object({ total: v.number(), registered: v.number(), unregistered: v.number(),
+    isDone: v.boolean(), continueCursor: v.string() }),
+  handler: async (ctx, { paginationOpts }) => {
+    const slice = await ctx.db.system.query("_storage").paginate(boundedPaginationOpts(paginationOpts));
+    let registered = 0;
+    for (const row of slice.page) {
+      const asset = await ctx.db.query("mediaAssets").withIndex("by_storage_id", q =>
+        q.eq("storageId", row._id)).first();
+      if (asset?.status === "ready") registered++;
+    }
+    return { total: slice.page.length, registered, unregistered: slice.page.length - registered,
+      isDone: slice.isDone, continueCursor: slice.continueCursor };
   },
 });

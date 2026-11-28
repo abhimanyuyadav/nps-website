@@ -5,11 +5,12 @@ const publicData = vi.hoisted(() => ({
   getCmsPage: vi.fn(),
   getLeader: vi.fn(),
   getCmsPages: vi.fn(),
+  getDiscoveryRoutes: vi.fn(),
   getDepartments: vi.fn(),
   getTeachers: vi.fn(),
   getLeadership: vi.fn(),
   getNews: vi.fn(),
-  getStudentArticles: vi.fn(),
+  getStudentArticlePage: vi.fn(),
   getNotices: vi.fn(),
   getEvents: vi.fn(),
   getGalleryAlbums: vi.fn(),
@@ -36,7 +37,10 @@ beforeEach(() => {
   vi.stubEnv("NEXT_PUBLIC_SITE_URL", "https://nepalpoliceschool.vercel.app");
   vi.stubEnv("VERCEL_PROJECT_PRODUCTION_URL", "");
   vi.stubEnv("VERCEL_URL", "");
+  vi.stubEnv("NEXT_PUBLIC_CONVEX_URL", "https://fixture.convex.cloud");
+  publicData.getStudentArticlePage.mockResolvedValue({ articles: [], nextCursor: null });
   publicData.getSiteProfile.mockResolvedValue({ noIndex: false });
+  publicData.getDiscoveryRoutes.mockImplementation(async collection => collection === 'pages' ? (await publicData.getCmsPages()).map((row: {slug:string;seo?:{noIndex?:boolean}}) => ({slug:row.slug,noIndex:!!row.seo?.noIndex})) : []);
   publicData.getCmsPage.mockResolvedValue(null);
   for (const name of [
     "getCmsPages",
@@ -44,7 +48,6 @@ beforeEach(() => {
     "getTeachers",
     "getLeadership",
     "getNews",
-    "getStudentArticles",
     "getNotices",
     "getEvents",
     "getGalleryAlbums",
@@ -104,6 +107,9 @@ describe("sitemap discoverability", () => {
       { slug: "private-information", seo: { noIndex: true } },
       ...[
         "about/history",
+        "academics/departments/science",
+        "academics/faculty",
+        "academics/downloads",
         "student/login",
         "admin/settings",
         "search",
@@ -115,16 +121,21 @@ describe("sitemap discoverability", () => {
         "sign-in",
       ].map((slug) => ({ slug, seo: {} })),
     ]);
-    publicData.getStudentArticles.mockResolvedValue([
+    publicData.getStudentArticlePage.mockResolvedValueOnce({ articles: [
       { slug: "school-project", publishedAt: "2026-09-01", seo: {} },
       { slug: "hidden-project", seo: { noIndex: true } },
-    ]);
+    ], nextCursor: "older" }).mockResolvedValueOnce({ articles: [{ slug: "older-project" }], nextCursor: null });
     const paths = (await sitemap()).map((entry) => new URL(entry.url).pathname);
     expect(paths).toContain("/community");
     expect(paths).toContain("/articles/school-project");
+    expect(paths).toContain("/articles/older-project");
+    expect(publicData.getStudentArticlePage).toHaveBeenCalledWith(100, "older");
     for (const path of [
       "/private-information",
       "/about/history",
+      "/academics/departments/science",
+      "/academics/faculty",
+      "/academics/downloads",
       "/student/login",
       "/admin/settings",
       "/search",
@@ -138,6 +149,12 @@ describe("sitemap discoverability", () => {
     ])
       expect(paths).not.toContain(path);
     expect(new Set(paths).size).toBe(paths.length);
+  });
+
+  it("does not publish a silently incomplete article sitemap when a later page fails", async () => {
+    publicData.getStudentArticlePage.mockResolvedValueOnce({ articles: [], nextCursor: "more" })
+      .mockRejectedValueOnce(new Error("fixture backend unavailable"));
+    await expect(sitemap()).rejects.toThrow("fixture backend unavailable");
   });
 
   it("preserves an administrator's site-wide indexing opt-out", async () => {

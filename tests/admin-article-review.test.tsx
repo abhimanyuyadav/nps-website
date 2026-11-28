@@ -128,7 +128,7 @@ describe("student article moderation", () => {
     expect(screen.getByText("Publish this student article now?")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Confirm decision" }));
 
-    await waitFor(() => expect(mocks.approve).toHaveBeenCalledWith({ id: "article-1" }));
+    await waitFor(() => expect(mocks.approve).toHaveBeenCalledWith({ id: "article-1", expectedUpdatedAt: detail.updatedAt }));
     expect(await screen.findByText(/is published in Student articles/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Approved & published" })).toHaveAttribute(
       "aria-pressed",

@@ -5,6 +5,7 @@ import type { MutationCtx, QueryCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
 import { requireRole } from "./lib/auth";
+import { requireSeatWriter, attendeeCount, occupiesSeats, pendingCapacity, storeAttendeeCount } from "./lib/eventCapacity";
 import { writeAudit } from "./lib/audit";
 import { enqueueJob } from "./lib/jobs";
 import { recordCreated, recordDeleted, recordStatusChanged } from "./lib/metrics";
@@ -56,7 +57,6 @@ import {
 const STAFF_ROLES = ["admin", "publisher", "editor", "admissions"] as const;
 const CONTENT_ROLES = ["admin", "publisher", "editor"] as const;
 const PUBLISH_ROLES = ["admin", "publisher"] as const;
-const CAPACITY_RECONCILIATION_LIMIT = 1_000;
 
 const seoOutputValidator = v.object({
   title: v.optional(v.string()),
@@ -965,7 +965,7 @@ function validatePublication(values: any, actor: Doc<"users">, existing?: any) {
   const now = Date.now();
   const publishAt = values.publishAt ?? existing?.publishAt;
   const expireAt = values.expireAt ?? existing?.expireAt;
-  if ((effectiveStatus === "published" || effectiveStatus === "scheduled") && !isPublisher(actor)) {
+  if (!isPublisher(actor) && (effectiveStatus !== "draft" || (existing && existing.status !== "draft"))) {
     throw new ConvexError({ code: "PUBLISHER_REQUIRED", message: "A publisher must approve this status." });
   }
   if (effectiveStatus === "scheduled" && (!publishAt || publishAt <= now)) {
@@ -1208,16 +1208,19 @@ export const upsertContent = mutation({
     const existing = id ? await (ctx.db as any).get(args.type, id) : null;
     if (id && !existing) throw new ConvexError({ code: "NOT_FOUND", message: "Content was not found." });
     const cleaned = cleanContent(args.type, args.data);
-    if (
-      args.type === "events" &&
-      existing?.registeredAttendeeCount !== undefined &&
-      cleaned.capacity !== undefined &&
-      cleaned.capacity < existing.registeredAttendeeCount
-    ) {
-      throw new ConvexError({
-        code: "CAPACITY_BELOW_REGISTRATIONS",
-        message: "Event capacity cannot be lower than the number of already confirmed attendees.",
-      });
+    if (args.type === "events") {
+      if (!existing) {
+        cleaned.registeredAttendeeCount = 0;
+      } else if (cleaned.capacity !== undefined && cleaned.capacity !== existing.capacity) {
+        const used = (await attendeeCount(ctx, existing)) ?? pendingCapacity();
+        if (cleaned.capacity < used) {
+          throw new ConvexError({
+            code: "CAPACITY_BELOW_REGISTRATIONS",
+            message: "Event capacity cannot be lower than the number of already confirmed attendees.",
+          });
+        }
+        await storeAttendeeCount(ctx, existing, used);
+      }
     }
     if (existing && args.data.status === undefined) cleaned.status = existing.status;
     if (args.type === "teachers") {
@@ -1571,46 +1574,20 @@ export const updateSubmission = mutation({
       if (!event) {
         throw new ConvexError({ code: "EVENT_NOT_FOUND", message: "The registration event was not found." });
       }
-      let usedCapacity = event.registeredAttendeeCount ?? 0;
-      if (event.registeredAttendeeCount === undefined && event.capacity) {
-        const registered = (
-          await Promise.all(
-            (["registered", "attended", "no_show"] as const).map((status) =>
-              ctx.db
-                .query("eventRegistrations")
-                .withIndex("by_event_status", (q) => q.eq("eventId", event._id).eq("status", status))
-                .take(CAPACITY_RECONCILIATION_LIMIT + 1),
-            ),
-          )
-        ).flat();
-        if (registered.length > CAPACITY_RECONCILIATION_LIMIT) {
-          throw new ConvexError({
-            code: "CAPACITY_RECONCILIATION_REQUIRED",
-            message: "Reconcile this event's confirmed-attendee count before changing registration status.",
-          });
+      const delta = (Number(occupiesSeats(args.status)) - Number(occupiesSeats(existing.status))) * existing.attendees;
+      if (delta !== 0) {
+        const count = await attendeeCount(ctx, event);
+        if (delta > 0) {
+          requireSeatWriter();
+          if (count === undefined) pendingCapacity();
+          if (event.capacity !== undefined && count + delta > event.capacity) {
+            throw new ConvexError({
+              code: "EVENT_CAPACITY_EXCEEDED",
+              message: "This registration cannot be confirmed because the event is at capacity.",
+            });
+          }
         }
-        usedCapacity = registered.reduce((total, registration) => total + registration.attendees, 0);
-      }
-      const capacityStatuses = new Set(["registered", "attended", "no_show"]);
-      const leavingCapacity = capacityStatuses.has(existing.status) && !capacityStatuses.has(args.status);
-      const enteringCapacity = !capacityStatuses.has(existing.status) && capacityStatuses.has(args.status);
-      if (
-        enteringCapacity &&
-        event.capacity !== undefined &&
-        usedCapacity + existing.attendees > event.capacity
-      ) {
-        throw new ConvexError({
-          code: "EVENT_CAPACITY_EXCEEDED",
-          message: "This registration cannot be confirmed because the event is at capacity.",
-        });
-      }
-      if (leavingCapacity || enteringCapacity) {
-        await ctx.db.patch("events", event._id, {
-          registeredAttendeeCount: Math.max(
-            0,
-            usedCapacity + (enteringCapacity ? existing.attendees : -existing.attendees),
-          ),
-        });
+        await storeAttendeeCount(ctx, event, count === undefined || count + delta < 0 ? undefined : count + delta);
       }
     }
     await (ctx.db as any).patch(args.type, id, patch);

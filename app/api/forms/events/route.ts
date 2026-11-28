@@ -54,6 +54,8 @@ const getEvent = makeFunctionReference<"query", { slug: string }, { _id?: string
   "content:getEvent",
 );
 
+const acknowledgement = { ok: true, message: "The school received your request to attend. Check your email for registration details." };
+
 export async function POST(request: NextRequest) {
   const session = preparePublicFormRequest(request);
   if (!session)
@@ -66,13 +68,7 @@ export async function POST(request: NextRequest) {
   if (!parsed.success)
     return formJson(session, { error: "Please check the registration form." }, { status: 400 });
   const honeypot = parsed.data.website || parsed.data.honeypot;
-  if (looksLikeBot(honeypot)) {
-    return formJson(
-      session,
-      { ok: true, registrationNumber: "received", status: "pending" },
-      { status: 201 },
-    );
-  }
+  if (looksLikeBot(honeypot)) return formJson(session, acknowledgement, { status: 201 });
   if (!(await verifyTurnstile(parsed.data.captchaToken, request, "event-registration"))) {
     return formJson(session, { error: "Please complete the security check and try again." }, { status: 400 });
   }
@@ -122,7 +118,7 @@ export async function POST(request: NextRequest) {
       notes: args.notes ?? null,
       consent: args.consent,
     });
-    const result = await fetchAction(
+    await fetchAction(
       registerEvent,
       {
         ...args,
@@ -133,14 +129,7 @@ export async function POST(request: NextRequest) {
       },
       { url: session.convexUrl },
     );
-    return formJson(
-      session,
-      {
-        ...result,
-        message: `The school received your request to attend. Your reference number is ${result.registrationNumber}.`,
-      },
-      { status: 201 },
-    );
+    return formJson(session, acknowledgement, { status: 201 });
   } catch (error) {
     const rateLimited = error instanceof Error && /rate|too many/i.test(error.message);
     return formJson(

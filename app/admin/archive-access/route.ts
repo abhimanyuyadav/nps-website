@@ -102,29 +102,56 @@ export async function POST(request: Request) {
       return reply(null, 403);
     let result;
     let ids: string[];
-    if (spec.operation === "export") {
+    const archiveMode = process.env.ARCHIVE_RECORD_API ?? "legacy";
+    if (archiveMode !== "legacy" && archiveMode !== "audited") return reply(null, 503);
+    if (spec.operation === "export" && archiveMode === "audited") {
+      const rows = await archive.mutation(
+        makeFunctionReference<"mutation">("recordAccess:exportRegistrations"),
+        { ids: spec.ids },
+      );
+      if (
+        !Array.isArray(rows) ||
+        rows.length !== spec.ids.length ||
+        rows.some((row, index) => row?._id !== spec.ids[index])
+      )
+        return reply(null, 409);
+      result = rows;
+      ids = spec.ids;
+    } else if (spec.operation === "export") {
       const rows = [];
       // Bound concurrent work on the historical backend, preserving requested CSV order.
       for (let offset = 0; offset < spec.ids.length; offset += 8) {
         const batch = await Promise.all(
-          spec.ids
-            .slice(offset, offset + 8)
-            .map((recordId) =>
-              archive.query(makeFunctionReference<"query">("admin:getSubmission"), {
-                type: kind,
-                id: recordId,
-              }),
-            ),
+          spec.ids.slice(offset, offset + 8).map((recordId) =>
+            archive.query(makeFunctionReference<"query">("admin:getSubmission"), {
+              type: kind,
+              id: recordId,
+            }),
+          ),
         );
-        if (batch.some((row) => !row)) return reply(null, 409);
+        if (batch.some((row, index) => !row || row._id !== spec.ids[offset + index])) return reply(null, 409);
         rows.push(...batch);
       }
       result = rows;
       ids = rows.map((row) => row._id);
     } else {
-      result = await archive.query(makeFunctionReference<"query">(spec.source), spec.params);
+      result =
+        archiveMode === "audited"
+          ? await archive.mutation(makeFunctionReference<"mutation">("recordAccess:read"), {
+              source: spec.source,
+              params: spec.params,
+            })
+          : await archive.query(makeFunctionReference<"query">(spec.source), spec.params);
       const rows = result?.page ?? (result ? [result.conversation ?? result] : []);
       ids = rows.map((row: { _id: string }) => row._id);
+      if (spec.source === "admin:getSubmission" && result && result._id !== spec.params.id)
+        return reply(null, 409);
+      if (
+        spec.source === "admin:getAiConversation" &&
+        result &&
+        result.conversation?._id !== spec.params.conversationId
+      )
+        return reply(null, 409);
     }
     if (ids.length) {
       const receipt: ArchiveReceipt = {

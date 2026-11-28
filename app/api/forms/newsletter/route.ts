@@ -39,6 +39,8 @@ const subscribeNewsletter = makeFunctionReference<
   { ok: boolean; status: string }
 >("formActions:subscribeNewsletter");
 
+const acknowledgement = { ok: true, message: "We received your request. If this is your first time signing up, check your email for a confirmation link." };
+
 export async function POST(request: NextRequest) {
   const session = preparePublicFormRequest(request);
   if (!session)
@@ -51,7 +53,7 @@ export async function POST(request: NextRequest) {
       { status: 400 },
     );
   const honeypot = parsed.data.website || parsed.data.honeypot;
-  if (looksLikeBot(honeypot)) return formJson(session, { ok: true, status: "pending" }, { status: 201 });
+  if (looksLikeBot(honeypot)) return formJson(session, acknowledgement, { status: 201 });
   if (!(await verifyTurnstile(parsed.data.captchaToken, request, "newsletter"))) {
     return formJson(session, { error: "Please complete the security check and try again." }, { status: 400 });
   }
@@ -77,16 +79,8 @@ export async function POST(request: NextRequest) {
       source: args.source,
       consent: args.consent,
     });
-    const result = await fetchAction(subscribeNewsletter, { ...args, ...signed }, { url: session.convexUrl });
-    return formJson(
-      session,
-      {
-        ...result,
-        message:
-          "We received your request. If this is your first time signing up, check your email for a confirmation link.",
-      },
-      { status: 201 },
-    );
+    await fetchAction(subscribeNewsletter, { ...args, ...signed }, { url: session.convexUrl });
+    return formJson(session, acknowledgement, { status: 201 });
   } catch (error) {
     const rateLimited = error instanceof Error && /rate|too many/i.test(error.message);
     return formJson(

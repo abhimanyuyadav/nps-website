@@ -13,6 +13,8 @@ describe("server secret configuration", () => {
   it.each([
     undefined,
     "short",
+    " ".repeat(32),
+    "short".padEnd(32),
     "replace_with_a_long_random_secret",
     "your-example-secret-value-that-is-long",
   ])("rejects missing, weak, and copied example credentials", (value) => {

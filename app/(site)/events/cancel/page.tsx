@@ -27,7 +27,7 @@ export default async function CancelEventPage({
             endpoint="/api/events/cancel"
             token={token}
             buttonLabel="Cancel registration"
-            successMessage="The event registration has been cancelled."
+            successMessage="Your cancellation request has been processed. Contact the school if you need to confirm your registration status."
           />
         </div>
       </div>

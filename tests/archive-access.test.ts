@@ -3,13 +3,20 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { getFunctionName } from "convex/server";
 import { POST } from "@/app/admin/archive-access/route";
 
-const mocks = vi.hoisted(() => ({ auth: vi.fn(), primary: vi.fn(), read: vi.fn(), audit: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  auth: vi.fn(),
+  primary: vi.fn(),
+  read: vi.fn(),
+  audit: vi.fn(),
+  archivedMutation: vi.fn(),
+}));
 vi.mock("@clerk/nextjs/server", () => ({ auth: mocks.auth }));
 vi.mock("convex/browser", () => ({
   ConvexHttpClient: class {
     query;
-    mutation = mocks.audit;
+    mutation;
     constructor(url: string) {
+      this.mutation = url.includes("primary") ? mocks.audit : mocks.archivedMutation;
       this.query = url.includes("primary") ? mocks.primary : mocks.read;
     }
     setAuth() {}
@@ -80,4 +87,41 @@ it("propagates historical database access denial without releasing data", async 
     ).status,
   ).toBe(503);
   expect(mocks.audit).not.toHaveBeenCalled();
+});
+
+it("withholds a mismatched archive detail or export without recording the wrong identifier", async () => {
+  mocks.read.mockResolvedValue({ _id: "00000000000000000000000000000002", name: "Synthetic" });
+  for (const spec of [
+    { operation: "export", ids: [recordId] },
+    { operation: "read", source: "admin:getSubmission", params: { type: "admissions", id: recordId } },
+  ]) {
+    const response = await POST(request(spec));
+    expect(response.status).toBe(409);
+    expect(await response.json()).toBeNull();
+  }
+  expect(mocks.audit).not.toHaveBeenCalled();
+});
+
+it("uses the upgraded archive's logged read and export without a fallback to older queries", async () => {
+  vi.stubEnv("ARCHIVE_RECORD_API", "audited");
+  const row = { _id: recordId };
+  mocks.archivedMutation
+    .mockResolvedValueOnce(row)
+    .mockResolvedValueOnce([row])
+    .mockRejectedValueOnce(new Error("offline"));
+  const read = {
+    operation: "read",
+    source: "admin:getSubmission",
+    params: { type: "admissions", id: recordId },
+  };
+  expect((await POST(request(read))).status).toBe(200);
+  expect((await POST(request({ operation: "export", ids: [recordId] }))).status).toBe(200);
+  expect((await POST(request(read))).status).toBe(503);
+  expect(mocks.archivedMutation.mock.calls.map(([ref]) => getFunctionName(ref))).toEqual([
+    "recordAccess:read",
+    "recordAccess:exportRegistrations",
+    "recordAccess:read",
+  ]);
+  expect(mocks.audit).toHaveBeenCalledTimes(2);
+  expect(mocks.read).not.toHaveBeenCalled();
 });

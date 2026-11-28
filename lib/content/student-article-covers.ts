@@ -1,4 +1,4 @@
-type ArticleCover = { url: string; alt?: string };
+type ArticleCover = { url: string; alt: string };
 
 const editorialCovers = new Map<string, ArticleCover>([
   [
@@ -17,7 +17,6 @@ const editorialCovers = new Map<string, ArticleCover>([
   ],
 ]);
 
-export function studentArticleCover(slug?: string, uploadedUrl?: string, uploadedAlt?: string) {
-  if (uploadedUrl) return { url: uploadedUrl, alt: uploadedAlt };
-  return slug ? editorialCovers.get(slug) : undefined;
+export function legacyEditorialCover(slug: string) {
+  return editorialCovers.get(slug);
 }

@@ -15,12 +15,12 @@ import {
 } from "./lib/input";
 import { enforceRateLimit, protectSharedNetwork } from "./lib/rateLimit";
 import { guardianValidator, publicRequestFields, studentValidator } from "./lib/validators";
+import { requireSeatWriter, attendeeCount, pendingCapacity, storeAttendeeCount } from "./lib/eventCapacity";
 import { writeAudit } from "./lib/audit";
 import { recordCreated, recordStatusChanged } from "./lib/metrics";
 
 const successWithTicket = v.object({ ok: v.boolean(), ticketNumber: v.string() });
 const successWithApplication = v.object({ ok: v.boolean(), applicationNumber: v.string() });
-const CAPACITY_RECONCILIATION_LIMIT = 1_000;
 
 export const reserveVoiceCapacity = internalMutation({
   args: { networkKey: v.string() },
@@ -464,27 +464,9 @@ export const registerEvent = internalMutation({
       } as const;
     }
 
+    requireSeatWriter();
     const attendees = positiveInteger(args.attendees, "Attendees", 10);
-    let usedCapacity = event.registeredAttendeeCount ?? 0;
-    if (event.capacity !== undefined && event.registeredAttendeeCount === undefined) {
-      const current = (
-        await Promise.all(
-          (["registered", "attended", "no_show"] as const).map((status) =>
-            ctx.db
-              .query("eventRegistrations")
-              .withIndex("by_event_status", (q) => q.eq("eventId", event._id).eq("status", status))
-              .take(CAPACITY_RECONCILIATION_LIMIT + 1),
-          ),
-        )
-      ).flat();
-      if (current.length > CAPACITY_RECONCILIATION_LIMIT) {
-        throw new ConvexError({
-          code: "CAPACITY_RECONCILIATION_REQUIRED",
-          message: "Event capacity is temporarily unavailable while registrations are reconciled.",
-        });
-      }
-      usedCapacity = current.reduce((total, registration) => total + registration.attendees, 0);
-    }
+    const usedCapacity = (await attendeeCount(ctx, event)) ?? pendingCapacity();
     const status =
       event.capacity !== undefined && usedCapacity + attendees > event.capacity ? "waitlisted" : "registered";
     const registrationNumber = referenceNumber("NPS-E", now, idempotencyKey);
@@ -505,11 +487,7 @@ export const registerEvent = internalMutation({
       updatedAt: now,
     });
     if (status === "registered") {
-      // Patching the event in the same transaction serializes concurrent
-      // registrations through Convex OCC and prevents overbooking.
-      await ctx.db.patch("events", event._id, {
-        registeredAttendeeCount: usedCapacity + attendees,
-      });
+      await storeAttendeeCount(ctx, event, usedCapacity + attendees);
     }
     await recordCreated(ctx, "workflows:eventRegistrations", status);
     await enqueueJob(ctx, {
@@ -536,56 +514,33 @@ export const cancelEventRegistration = mutation({
       .withIndex("by_cancellation_token", (q) => q.eq("cancellationToken", token))
       .unique();
     if (!registration) return { ok: true };
-    if (registration.status !== "cancelled") {
-      const previousStatus = registration.status;
-      const now = Date.now();
-      if (["registered", "attended", "no_show"].includes(registration.status)) {
-        const event = await ctx.db.get("events", registration.eventId);
-        if (event) {
-          let usedCapacity = event.registeredAttendeeCount;
-          if (usedCapacity === undefined && event.capacity) {
-            const current = (
-              await Promise.all(
-                (["registered", "attended", "no_show"] as const).map((status) =>
-                  ctx.db
-                    .query("eventRegistrations")
-                    .withIndex("by_event_status", (q) => q.eq("eventId", event._id).eq("status", status))
-                    .take(CAPACITY_RECONCILIATION_LIMIT + 1),
-                ),
-              )
-            ).flat();
-            if (current.length > CAPACITY_RECONCILIATION_LIMIT) {
-              // Cancellation must remain available. Leave the legacy counter
-              // unset so a later reconciliation can calculate it safely.
-              usedCapacity = undefined;
-            } else {
-              usedCapacity = current.reduce((total, item) => total + item.attendees, 0);
-            }
-          }
-          if (usedCapacity !== undefined) {
-            await ctx.db.patch("events", event._id, {
-              registeredAttendeeCount: Math.max(0, usedCapacity - registration.attendees),
-            });
-          }
-        }
-      }
-      await ctx.db.patch("eventRegistrations", registration._id, {
-        status: "cancelled",
-        updatedAt: now,
-      });
-      await recordStatusChanged(ctx, "workflows:eventRegistrations", previousStatus, "cancelled");
-      await enqueueJob(ctx, {
-        type: "event_confirmation",
-        idempotencyKey: `event-cancel:${registration._id}`,
-        payload: {
-          entityType: "eventRegistrations",
-          entityId: registration._id,
-          recipient: registration.email,
-          template: "event-cancelled",
-          metadata: { expectedStatus: "cancelled", transition: "self-service" },
-        },
-      });
+    if (registration.status !== "registered" && registration.status !== "waitlisted") return { ok: true };
+    const now = Date.now();
+    const event = await ctx.db.get("events", registration.eventId);
+    if (!event || event.endAt <= now) return { ok: true };
+    const previousStatus = registration.status;
+    if (previousStatus === "registered") {
+      const count = await attendeeCount(ctx, event);
+      // A large legacy ledger may still be reconciled after the cancellation commits.
+      await storeAttendeeCount(ctx, event, count === undefined || count < registration.attendees
+        ? undefined : count - registration.attendees);
     }
+    await ctx.db.patch("eventRegistrations", registration._id, {
+      status: "cancelled",
+      updatedAt: now,
+    });
+    await recordStatusChanged(ctx, "workflows:eventRegistrations", previousStatus, "cancelled");
+    await enqueueJob(ctx, {
+      type: "event_confirmation",
+      idempotencyKey: `event-cancel:${registration._id}`,
+      payload: {
+        entityType: "eventRegistrations",
+        entityId: registration._id,
+        recipient: registration.email,
+        template: "event-cancelled",
+        metadata: { expectedStatus: "cancelled", transition: "self-service" },
+      },
+    });
     return { ok: true };
   },
 });

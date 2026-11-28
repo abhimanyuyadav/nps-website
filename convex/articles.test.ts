@@ -78,6 +78,10 @@ async function staffIdentity(
   });
 }
 
+async function reviewVersion(t: ReturnType<typeof setup>, id: Id<"articles">) {
+  return (await t.run((ctx) => ctx.db.get("articles", id)))!.updatedAt;
+}
+
 const draftInput = {
   title: "Learning through community service",
   excerpt:
@@ -131,8 +135,8 @@ describe("student article publishing", () => {
       expect(queue.page).toHaveLength(1);
       expect(queue.page[0]).not.toHaveProperty("body");
 
-      await expect(publisher.mutation(api.articleAdmin.approve, { id: draft._id })).rejects.toThrow(/admin/i);
-      const approved = await admin.mutation(api.articleAdmin.approve, { id: draft._id });
+      await expect(publisher.mutation(api.articleAdmin.approve, { id: draft._id, expectedUpdatedAt: await reviewVersion(t, draft._id) })).rejects.toThrow(/admin/i);
+      const approved = await admin.mutation(api.articleAdmin.approve, { id: draft._id, expectedUpdatedAt: await reviewVersion(t, draft._id) });
       expect(approved.status).toBe("published");
 
       const publicAfterApproval = await t.query(api.articles.listPublished, {
@@ -166,7 +170,7 @@ describe("student article publishing", () => {
     const draft = await student.mutation(api.articles.saveDraft, { article: draftInput });
     const id = draft._id;
     await student.mutation(api.articles.submitForReview, { articleId: id });
-    await admin.mutation(api.articleAdmin.approve, { id });
+    await admin.mutation(api.articleAdmin.approve, { id, expectedUpdatedAt: await reviewVersion(t, id) });
     const published = (await admin.query(internal.articleAdmin.getArticle, { id }))!;
     const content = { ...draftInput, title: "A revised story about community service" };
     const edit = { id, expectedUpdatedAt: published.updatedAt, content };
@@ -174,9 +178,9 @@ describe("student article publishing", () => {
     await admin.mutation(api.articleAdmin.editContent, edit);
     await expect(admin.mutation(api.articleAdmin.editContent, edit)).rejects.toThrow(/changed/);
     expect((await t.query(api.articles.getPublished, { slug: published.slug! }))?.title).toBe(content.title);
-    await admin.mutation(api.articleAdmin.archive, { id });
+    await admin.mutation(api.articleAdmin.archive, { id, expectedUpdatedAt: await reviewVersion(t, id) });
     expect(await t.query(api.articles.getPublished, { slug: published.slug! })).toBeNull();
-    await admin.mutation(api.articleAdmin.approve, { id });
+    await admin.mutation(api.articleAdmin.approve, { id, expectedUpdatedAt: await reviewVersion(t, id) });
     const edited = (await admin.query(internal.articleAdmin.getArticle, { id }))!;
     const deletion = { id, expectedUpdatedAt: edited.updatedAt };
     const proposal = { image: "test-bytes", alt: "School activity", version: "test-revision" };
@@ -191,21 +195,68 @@ describe("student article publishing", () => {
     ).toHaveLength(0);
     expect(await student.query(api.articles.getMine, { articleId: id })).toBeNull();
   });
+  it("requires the reviewed revision and registers staged covers only when publication succeeds", async () => {
+    const t = setup();
+    const { client: student } = await studentIdentity(t, "review@example.test", "School Writer");
+    const admin = await staffIdentity(t, "admin");
+    const { _id: id } = await student.mutation(api.articles.saveDraft, { article: draftInput });
+    const reviewed = await student.mutation(api.articles.submitForReview, { articleId: id });
+    await student.mutation(api.articles.withdrawSubmission, { articleId: id });
+    await student.mutation(api.articles.saveDraft, { articleId: id, article: { ...draftInput, title: "An updated reflection" } });
+    const current = await student.mutation(api.articles.submitForReview, { articleId: id });
+    const blob = new Blob(["synthetic image"], { type: "image/webp" });
+    const storageId = await t.run((ctx) => ctx.storage.store(blob));
+    const cover = { storageId, size: blob.size, alt: "Student artwork" };
+    const stale = { id, expectedUpdatedAt: reviewed.updatedAt };
+    await expect(admin.mutation(api.articleAdmin.reject, { ...stale, note: "Earlier review" })).rejects.toThrow(/changed/);
+    await expect(admin.mutation(api.articleAdmin.approve, stale)).rejects.toThrow(/changed/);
+    await expect(admin.mutation(api.articleAdmin.approve, { ...stale, cover })).rejects.toThrow(/changed/);
+    const files = () => t.run((ctx) => ctx.db.system.query("_storage").collect());
+    const media = () => t.run((ctx) => ctx.db.query("mediaAssets").collect());
+    expect(await files()).toHaveLength(1);
+    expect(await media()).toHaveLength(0);
+    await admin.mutation(api.articleAdmin.approve, { id, expectedUpdatedAt: current.updatedAt, cover });
+    expect(await files()).toHaveLength(1);
+    expect(await media()).toHaveLength(1);
+    const published = (await admin.query(internal.articleAdmin.getArticle, { id }))!;
+    expect(published.featuredImageAlt).toBe(cover.alt);
+    await expect(admin.mutation(api.articleAdmin.archive, stale)).rejects.toThrow(/changed/);
+    await expect(admin.mutation(api.articleAdmin.replacePublishedCover, { id, expectedUpdatedAt: current.updatedAt, cover })).rejects.toThrow(/changed/);
+    expect(await files()).toHaveLength(1);
+    await admin.mutation(api.articleAdmin.replacePublishedCover, { id, expectedUpdatedAt: published.updatedAt, cover: { ...cover, alt: "Replacement artwork" } });
+    expect((await admin.query(internal.articleAdmin.getArticle, { id }))?.featuredImageAlt).toBe("Replacement artwork");
+  });
+
   it("deletes only the draft's pending cover and rejects a late upload after deletion", async () => {
     const t = setup();
     const { client: student } = await studentIdentity(t, "cover@example.test", "Student");
     const first = await student.mutation(api.articles.saveDraft, { article: draftInput });
     const second = await student.mutation(api.articles.saveDraft, { article: draftInput });
     const proposal = { image: "test-bytes", alt: "Club project", version: "test-revision" };
+    await expect(t.query(internal.articleCoverDrafts.read, { articleId: second._id, checkPrimary: true }))
+      .resolves.toBe("legacy");
     for (const articleId of [first._id, second._id]) {
-      await t.mutation(internal.articleCoverDrafts.write, { articleId, ...proposal, verifyArticle: true });
+      await student.mutation(internal.articleCoverDrafts.write, { articleId, ...proposal });
     }
+    const { client: other } = await studentIdentity(t, "different@example.test", "Other");
+    await other.mutation(api.articles.saveDraft, { article: draftInput });
+    await expect(other.mutation(internal.articleCoverDrafts.write, { articleId: first._id, ...proposal }))
+      .rejects.toThrow("Only the author");
     await student.mutation(api.articles.deleteDraft, { articleId: first._id });
-    await expect(t.mutation(internal.articleCoverDrafts.write, {
-      articleId: first._id, ...proposal, verifyArticle: true,
+    await expect(student.mutation(internal.articleCoverDrafts.write, {
+      articleId: first._id, ...proposal,
     })).rejects.toThrow("existing editable article");
     expect(await t.query(internal.articleCoverDrafts.read, { articleId: first._id })).toBeNull();
     expect(await t.query(internal.articleCoverDrafts.read, { articleId: second._id })).toEqual(proposal);
+    await expect(other.mutation(internal.articleCoverDrafts.clear, {
+      articleId: second._id, version: proposal.version, authorOnly: true, primary: true,
+    })).rejects.toThrow("Only the author");
+    await student.mutation(internal.articleCoverDrafts.clear, {
+      articleId: second._id, version: proposal.version, authorOnly: true, primary: true,
+    });
+    for (const articleId of [first._id, second._id]) {
+      expect(await t.query(internal.articleCoverDrafts.read, { articleId, checkPrimary: true })).toBeNull();
+    }
   });
 
   it("refuses to publish an article owned by a suspended student", { timeout: 15_000 }, async () => {
@@ -223,7 +274,7 @@ describe("student article publishing", () => {
       });
     });
 
-    await expect(admin.mutation(api.articleAdmin.approve, { id: draft._id })).rejects.toThrow(/suspended/i);
+    await expect(admin.mutation(api.articleAdmin.approve, { id: draft._id, expectedUpdatedAt: await reviewVersion(t, draft._id) })).rejects.toThrow(/suspended/i);
     expect(
       await t.query(api.articles.getPublished, { slug: "learning-through-community-service" }),
     ).toBeNull();
@@ -257,11 +308,11 @@ describe("student article publishing", () => {
       const draft = await student.mutation(api.articles.saveDraft, { article: draftInput });
       await student.mutation(api.articles.submitForReview, { articleId: draft._id });
 
-      await expect(admin.mutation(api.articleAdmin.reject, { id: draft._id, note: "no" })).rejects.toThrow(
+      await expect(admin.mutation(api.articleAdmin.reject, { id: draft._id, expectedUpdatedAt: await reviewVersion(t, draft._id), note: "no" })).rejects.toThrow(
         /between 3 and 1000/i,
       );
       await admin.mutation(api.articleAdmin.reject, {
-        id: draft._id,
+        id: draft._id, expectedUpdatedAt: await reviewVersion(t, draft._id),
         note: "Please add one concrete example from the service activity.",
       });
       expect((await student.query(api.articles.getMine, { articleId: draft._id }))?.reviewNote).toMatch(
@@ -315,8 +366,8 @@ describe("student article publishing", () => {
     const second = await secondStudent.mutation(api.articles.saveDraft, { article: draftInput });
     await firstStudent.mutation(api.articles.submitForReview, { articleId: first._id });
     await secondStudent.mutation(api.articles.submitForReview, { articleId: second._id });
-    await admin.mutation(api.articleAdmin.approve, { id: first._id });
-    await admin.mutation(api.articleAdmin.approve, { id: second._id });
+    await admin.mutation(api.articleAdmin.approve, { id: first._id, expectedUpdatedAt: await reviewVersion(t, first._id) });
+    await admin.mutation(api.articleAdmin.approve, { id: second._id, expectedUpdatedAt: await reviewVersion(t, second._id) });
 
     const published = await t.query(api.articles.listPublished, {
       paginationOpts: { numItems: 20, cursor: null },
@@ -365,4 +416,43 @@ describe("student article publishing", () => {
       );
     },
   );
+});
+
+it.each([
+  ["my-journey-as-a-young-developer", "/media/article-young-developer.webp"],
+  ["a-day-of-learning-and-teamwork-43963", "/media/facility-classrooms.webp"],
+])("keeps the existing editorial cover after renaming the migrated article %s", async (slug, url) => {
+  const t = setup();
+  const id = await t.run(async (ctx) => {
+    const authorId = await ctx.db.insert("studentProfiles", {
+      authUserId: "fixture",
+      name: "Fixture",
+      email: "fixture@example.test",
+      status: "active",
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    return ctx.db.insert("articles", {
+      authorId,
+      slug,
+      ...draftInput,
+      status: "published",
+      featured: false,
+      seo: {},
+      publishedAt: 1,
+      createdAt: 1,
+      updatedAt: 1,
+    });
+  });
+  const args = { id, expectedSlug: slug, expectedUpdatedAt: 1 };
+  await expect(
+    t.mutation(internal.articleAdmin.attachLegacyEditorialCover, { ...args, expectedUpdatedAt: 0 }),
+  ).rejects.toThrow(/revision/);
+  await expect(t.mutation(internal.articleAdmin.attachLegacyEditorialCover, args)).resolves.toBe("attached");
+  await expect(t.mutation(internal.articleAdmin.attachLegacyEditorialCover, args)).resolves.toBe(
+    "already-set",
+  );
+  await t.run((ctx) => ctx.db.patch("articles", id, { slug: "changed-address" }));
+  const page = await t.query(api.articles.listPublished, { paginationOpts: { numItems: 10, cursor: null } });
+  expect(page.page[0]).toMatchObject({ slug: "changed-address", featuredImageUrl: url });
 });

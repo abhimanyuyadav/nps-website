@@ -848,3 +848,22 @@ describe("media pagination invariants", () => {
     expect(second.isDone).toBe(true);
   });
 });
+
+describe("editor publication boundaries", () => {
+  it("allows draft edits and reserves changes to other publication states for publishers", async () => {
+    const t = convexTest(schema, modules);
+    await insertUser(t, "draft-editor", ["editor"]);
+    await insertUser(t, "school-publisher", ["publisher"]);
+    const editor = t.withIdentity({ subject: "draft-editor" });
+    const publisher = t.withIdentity({ subject: "school-publisher" });
+    const data = { slug: "school-science", name: "Science", description: "School science department.", responsibilities: ["Teaching"] };
+    const id = await editor.mutation(api.admin.upsertContent, { payload: { type: "departments", data } });
+    const save = (status: "draft" | "archived" | "published") => ({ type: "departments" as const, id, data: { ...data, status } });
+    await editor.mutation(api.admin.upsertContent, { payload: save("draft") });
+    await expect(editor.mutation(api.admin.upsertContent, { payload: save("archived") })).rejects.toThrow(/publisher/i);
+    await publisher.mutation(api.admin.upsertContent, { payload: save("published") });
+    await expect(editor.mutation(api.admin.upsertContent, { payload: save("draft") })).rejects.toThrow(/publisher/i);
+    await publisher.mutation(api.admin.upsertContent, { payload: save("archived") });
+    await expect(editor.mutation(api.admin.upsertContent, { payload: save("draft") })).rejects.toThrow(/publisher/i);
+  });
+});

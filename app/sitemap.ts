@@ -1,16 +1,7 @@
+import { canonicalPublicHref } from "@/lib/content/canonical-public-href";
 import type { MetadataRoute } from "next";
-import {
-  getDepartments,
-  getCmsPages,
-  getEvents,
-  getGalleryAlbums,
-  getLeadership,
-  getNews,
-  getNotices,
-  getSiteProfile,
-  getStudentArticles,
-  getTeachers,
-} from "@/lib/data/public";
+import { discoveryPrefixes, type DiscoveryCollection } from "@/lib/content/discovery";
+import { getDiscoveryRoutes, getSiteProfile, getStudentArticlePage } from "@/lib/data/public";
 import { getSiteUrl } from "@/lib/server/site-url";
 
 export const revalidate = 3600;
@@ -45,51 +36,55 @@ const routes = [
   "/accessibility",
 ];
 
-const redirectedPageSlugs = new Set([
-  "about/overview",
-  "about/history",
-  "about/mission-vision",
-  "academics/overview",
-  "academics/primary",
-  "academics/secondary",
-  "academics/plus-2",
-  "academics/curriculum",
-  "academics/departments",
-  "academics/library",
-  "academics/sports",
-  "teachers",
-  "campus-life/facilities",
-  "campus-life/virtual-tour",
-  "campus-life/transport",
-]);
-
 // These routes have their own private, noindex, redirect, or metadata handlers.
 // A CMS slug with the same name cannot create an indexable public page there.
 function isDiscoverableCmsPage(slug: string) {
   return !(
-    redirectedPageSlugs.has(slug) ||
+    canonicalPublicHref(`/${slug}`) !== `/${slug}` ||
     /^(admin|api|sign-in|student|search|newsletter)(\/|$)/.test(slug) ||
     ["admissions/submitted", "events/cancel", "robots.txt", "sitemap.xml"].includes(slug)
   );
+}
+
+async function publishedArticleRoutes() {
+  const entries: { route: string; lastModified?: string }[] = [];
+  if (!process.env.NEXT_PUBLIC_CONVEX_URL) return entries;
+  let cursor: string | null = null;
+  do {
+    const page = await getStudentArticlePage(100, cursor);
+    for (const article of page.articles) {
+      if (!article.seo?.noIndex) {
+        entries.push({
+          route: `/articles/${article.slug}`,
+          lastModified: article.updatedAt ?? article.publishedAt,
+        });
+      }
+    }
+    cursor = page.nextCursor;
+  } while (cursor);
+  return entries;
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const siteUrl = getSiteUrl();
   const site = await getSiteProfile();
   if (site.noIndex) return [];
-  const [pages, departments, teachers, leadership, news, articles, notices, events, galleries] =
-    await Promise.all([
-      getCmsPages(),
-      getDepartments(),
-      getTeachers(),
-      getLeadership(),
-      getNews(200),
-      getStudentArticles(100),
-      getNotices(200),
-      getEvents("all", 200),
-      getGalleryAlbums(),
-    ]);
-  const noIndexPages = new Set(pages.filter((page) => page.seo?.noIndex).map((page) => `/${page.slug}`));
+  const collections = Object.keys(discoveryPrefixes) as DiscoveryCollection[];
+  const [groups, articles] = await Promise.all([
+    Promise.all(
+      collections.map(async (collection) => ({
+        collection,
+        rows: await getDiscoveryRoutes(collection),
+      })),
+    ),
+    publishedArticleRoutes(),
+  ]);
+  const noIndexPages = new Set(
+    groups
+      .find((group) => group.collection === "pages")
+      ?.rows.filter((row) => row.noIndex)
+      .map((row) => "/" + row.slug),
+  );
   const staticEntries: MetadataRoute.Sitemap = routes
     .filter((route) => !noIndexPages.has(route))
     .map((route) => ({
@@ -101,32 +96,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: route === "" ? 1 : route.startsWith("/admissions") ? 0.8 : 0.7,
     }));
   const dynamicRouteCandidates: Array<{ route: string; lastModified?: string }> = [
-    ...pages
-      .filter((item) => !item.seo?.noIndex && isDiscoverableCmsPage(item.slug))
-      .map((item) => ({ route: `/${item.slug}` })),
-    ...departments
-      .filter((item) => !item.seo?.noIndex)
-      .map((item) => ({ route: `/departments/${item.slug}` })),
-    ...teachers.filter((item) => !item.seo?.noIndex).map((item) => ({ route: `/teachers/${item.slug}` })),
-    ...leadership.map((item) => ({ route: `/about/leadership/${item.slug}` })),
-    ...news
-      .filter((item) => !item.seo?.noIndex)
-      .map((item) => ({ route: `/news/${item.slug}`, lastModified: item.publishedAt })),
-    ...articles
-      .filter((item) => !item.seo?.noIndex)
-      .map((item) => ({
-        route: `/articles/${item.slug}`,
-        lastModified: item.updatedAt ?? item.publishedAt,
-      })),
-    ...notices
-      .filter((item) => !item.seo?.noIndex)
-      .map((item) => ({ route: `/notices/${item.slug}`, lastModified: item.publishedAt })),
-    ...events
-      .filter((item) => !item.seo?.noIndex)
-      .map((item) => ({ route: `/events/${item.slug}`, lastModified: item.publishedAt })),
-    ...galleries
-      .filter((item) => !item.seo?.noIndex)
-      .map((item) => ({ route: `/campus-life/gallery/${item.slug}` })),
+    ...groups.flatMap(({ collection, rows }) =>
+      rows
+        .filter((row) => !row.noIndex && (collection !== "pages" || isDiscoverableCmsPage(row.slug)))
+        .map((row) => ({
+          route: discoveryPrefixes[collection] + "/" + row.slug,
+          lastModified: row.lastModified !== undefined ? new Date(row.lastModified).toISOString() : undefined,
+        })),
+    ),
+    ...articles,
   ];
   const dynamicRoutes = [
     ...new Map(

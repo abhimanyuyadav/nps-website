@@ -49,7 +49,7 @@ export function useArticleCover(mode: Mode, id?: string) {
     setFile(value);
     if (value) setPreview(URL.createObjectURL(value));
   }
-  async function save(articleId: string) {
+  async function save(articleId: string, reviewedVersion?: number) {
     if (!file && mode === "student") return;
     if (!file && mode === "admin" && loaded !== articleId)
       throw Error("Wait for the proposed cover to load, or use Retry.");
@@ -60,13 +60,16 @@ export function useArticleCover(mode: Mode, id?: string) {
       data.set("image", file);
       data.set("alt", alt.trim());
     }
+    const headers = new Headers();
+    if (mode === "admin") headers.set("X-Article-Revision", String(reviewedVersion));
+    if (!file) headers.set("Content-Type", "application/json");
     const response = await fetch(
       endpoint(mode, articleId),
       file
-        ? { method: "POST", body: data }
+        ? { method: "POST", headers, body: data }
         : {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers,
             body: JSON.stringify({ version: pending!.version }),
           },
     );

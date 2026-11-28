@@ -194,6 +194,8 @@ export default defineSchema({
   articles: defineTable({
     authorId: v.id("studentProfiles"),
     authorNameSnapshot: v.optional(v.string()),
+    primaryCoverManaged: v.optional(v.boolean()),
+    editorialCover: v.optional(v.object({ url: v.string(), alt: v.string() })),
     slug: v.optional(v.string()),
     title: v.string(),
     excerpt: v.string(),
@@ -799,6 +801,12 @@ export default defineSchema({
     .index("by_status_updated_at", ["status", "updatedAt"])
     .index("by_updated_at", ["updatedAt"])
     .index("by_scheduled_at", ["scheduledAt"]),
+
+  eventCapacityProgress: defineTable({
+    eventId: v.id("events"),
+    cursor: v.string(),
+    subtotal: v.number(),
+  }).index("by_event", ["eventId"]),
 
   eventRegistrations: defineTable({
     idempotencyKey: v.string(),

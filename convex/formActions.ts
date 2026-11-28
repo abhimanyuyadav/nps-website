@@ -56,12 +56,12 @@ export const articleCover = action({
     signature: v.string(),
     requestTimestamp: v.number(),
     articleId: v.string(),
-    op: v.union(v.literal("read"), v.literal("write"), v.literal("writeLocal"), v.literal("clear")),
+    op: v.union(v.literal("read"), v.literal("readPrimary"), v.literal("writeLocal"), v.literal("clear"), v.literal("clearLocal"), v.literal("clearOwn")),
     version: v.string(),
     image: v.string(),
     alt: v.string(),
   },
-  handler: async (ctx, args): Promise<{ image: string; alt: string; version: string } | null> => {
+  handler: async (ctx, args): Promise<{ image: string; alt: string; version: string } | "legacy" | null> => {
     const { articleId, op, version, image, alt } = args;
     authorize(
       args.signature,
@@ -76,12 +76,14 @@ export const articleCover = action({
         alt,
       }),
     );
-    if (op === "read") return await ctx.runQuery(internal.articleCoverDrafts.read, { articleId });
-    if (op === "write" || op === "writeLocal")
-      await ctx.runMutation(internal.articleCoverDrafts.write, {
-        articleId, version, image, alt, verifyArticle: op === "writeLocal",
+    if (op === "read" || op === "readPrimary")
+      return ctx.runQuery(internal.articleCoverDrafts.read, { articleId, checkPrimary: op === "readPrimary" });
+    if (op === "writeLocal")
+      await ctx.runMutation(internal.articleCoverDrafts.write, { articleId, version, image, alt });
+    else
+      await ctx.runMutation(internal.articleCoverDrafts.clear, {
+        articleId, version, primary: op !== "clear", authorOnly: op === "clearOwn",
       });
-    else await ctx.runMutation(internal.articleCoverDrafts.clear, { articleId, version });
     return null;
   },
 });
@@ -285,11 +287,14 @@ export const registerEvent = action({
     const client = schoolContentClient();
     let eventId = input.eventId as Id<"events">;
     if (client) {
-      const event = args.eventSlug
+      let event = args.eventSlug
         ? await client.query(api.content.getEvent, { slug: args.eventSlug })
         : (
             await client.query(api.content.listEvents, { now: Date.now(), scope: "upcoming", limit: 200 })
           ).find((row) => row._id === args.eventId);
+      if (event && event._id === args.eventId && event.capacity !== undefined && event.registeredAttendeeCount === undefined) {
+        event = await client.query(api.content.getEvent, { slug: event.slug, resolveCapacity: true });
+      }
       if (!event || event._id !== args.eventId || !event.registrationEnabled || event.endAt <= Date.now())
         throw new ConvexError({ code: "EVENT_CLOSED", message: "Event registration is closed." });
       eventId = await ctx.runMutation(internal.workflowEvents.refresh, {
@@ -302,7 +307,7 @@ export const registerEvent = action({
         isOnline: event.isOnline,
         venue: event.venue,
         capacity: event.capacity,
-        previousAttendees: event.registeredAttendeeCount ?? 0,
+        previousAttendees: event.registeredAttendeeCount,
         registrationEnabled: event.registrationEnabled,
       });
     }

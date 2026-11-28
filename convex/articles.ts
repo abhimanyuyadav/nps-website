@@ -121,7 +121,7 @@ export const saveDraft = mutation({
         });
       }
       const nextStatus = article.status === "rejected" ? ("draft" as const) : article.status;
-      await ctx.db.patch("articles", article._id, { ...clean, status: nextStatus, updatedAt: now });
+      await ctx.db.patch("articles", article._id, { ...clean, status: nextStatus, updatedAt: Math.max(now, article.updatedAt + 1) });
       if (article.status === "rejected") {
         await recordStatusChanged(ctx, "articles", "rejected", "draft");
         await writeAudit(ctx, null, {
@@ -187,7 +187,7 @@ export const submitForReview = mutation({
       windowMs: 60 * 60 * 1000,
     });
     validateArticleForSubmission(article);
-    const now = Date.now();
+    const now = Math.max(Date.now(), article.updatedAt + 1);
     const slug = article.slug ?? (await uniqueArticleSlug(ctx, article.title, article._id));
     await ctx.db.patch("articles", article._id, {
       slug,
@@ -224,7 +224,7 @@ export const withdrawSubmission = mutation({
       limit: 10,
       windowMs: 60 * 60 * 1000,
     });
-    const now = Date.now();
+    const now = Math.max(Date.now(), article.updatedAt + 1);
     await ctx.db.patch("articles", article._id, {
       status: "draft",
       submittedAt: undefined,

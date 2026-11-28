@@ -1,5 +1,6 @@
 import { readBoundedJson } from "@/lib/server/request-body";
 import { auth } from "@clerk/nextjs/server";
+import { ConvexError } from "convex/values";
 import { ConvexHttpClient } from "convex/browser";
 import { revalidateTag } from "next/cache";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -29,6 +30,8 @@ export async function POST(request: Request, { params }: Context) {
     access = await reviewer(id);
   if (!access || !["submitted", "published"].includes(access.article.status)) return coverJson(null, 403);
   const { client, article } = access;
+  if (request.headers.get("X-Article-Revision") !== String(article.updatedAt))
+    return coverJson({ error: "The article changed. Reopen it before continuing." }, 409);
   const proposed = await pendingCover(id, "read");
   const usingProposal = request.headers.get("content-type")?.includes("application/json");
   const selection = usingProposal ? await readBoundedJson(request, 2048) : null;
@@ -41,35 +44,42 @@ export async function POST(request: Request, { params }: Context) {
       { error: "Choose a smaller JPG, PNG or WebP image (up to 4 MB) and enter its description." },
       400,
     );
+  if (article.status === "submitted" && article.author.status !== "active")
+    return coverJson({ error: "The author is suspended. Reopen the article before continuing." }, 409);
   const bytes = Buffer.from(cover.image, "base64");
   const uploadUrl = await client.mutation(api.media.generateUploadUrl, {});
   const uploaded = await fetch(uploadUrl, {
-    method: "POST",
-    headers: { "Content-Type": "image/webp" },
-    body: bytes,
+    method: "POST", headers: { "Content-Type": "image/webp" }, body: bytes,
   });
   if (!uploaded.ok)
-    return coverJson({ error: "The media library could not accept the image. Please retry." }, 502);
+    return coverJson({ error: "The image could not be staged. Please retry." }, 502);
   const { storageId } = await uploaded.json();
-  await client.mutation(api.media.finalizeUpload, {
-    storageId,
-    fileName: "article-cover-" + id + ".webp",
-    mimeType: "image/webp",
-    size: bytes.length,
-    alt: cover.alt,
-    folder: "student-articles",
-  });
-  await client.mutation(api.articleAdmin.updateEditorial, {
+  const change = {
     id: article._id,
-    editorial: {
-      category: article.category,
-      featured: article.featured,
-      seo: article.seo,
-      featuredImageId: storageId,
-      featuredImageAlt: cover.alt,
+    expectedUpdatedAt: article.updatedAt,
+    cover: {
+      storageId,
+      size: bytes.length,
+      alt: cover.alt,
+      ...(proposed ? { proposalVersion: proposed.version } : {}),
     },
-  });
-  if (proposed) await pendingCover(id, "clear", proposed);
+  };
+  try {
+    if (article.status === "submitted") await client.mutation(api.articleAdmin.approve, change);
+    else await client.mutation(api.articleAdmin.replacePublishedCover, change);
+  } catch (error) {
+    if (error instanceof ConvexError && ["STALE", "NOT_FOUND", "INVALID_STATE"].includes(error.data?.code))
+      return coverJson({ error: "The article changed. Reopen it before continuing." }, 409);
+    throw error;
+  }
+  // A workflow deployment may still own a legacy proposal. A failed cleanup must not undo a committed decision.
+  if (proposed) {
+    try {
+      await pendingCover(id, "clear", proposed);
+    } catch {
+      console.error("Could not clear the reviewed legacy article cover.");
+    }
+  }
   revalidateTag("public-content", { expire: 0 });
   return coverJson(null);
 }

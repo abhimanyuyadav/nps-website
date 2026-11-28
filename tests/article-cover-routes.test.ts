@@ -44,7 +44,7 @@ beforeEach(() => {
   mocks.query.mockImplementation(async (ref) =>
     getFunctionName(ref) === "users:current"
       ? { roles: ["admin"], status: "active" }
-      : { _id: id, status: "submitted", category: "Student life", seo: {}, featured: false },
+      : { _id: id, updatedAt: 123, status: "submitted", author: { status: "active" }, category: "Student life", seo: {}, featured: false },
   );
   mocks.action.mockImplementation(
     async (_ref, { signature, requestTimestamp, articleId, op, version, image, alt }) => {
@@ -62,7 +62,7 @@ beforeEach(() => {
   );
   mocks.mutate.mockImplementation(async (ref) => {
     if (getFunctionName(ref) === "recordAccess:read")
-      return { _id: id, status: "submitted", category: "Student life", seo: {}, featured: false };
+      return { _id: id, updatedAt: 123, status: "submitted", author: { status: "active" }, category: "Student life", seo: {}, featured: false };
     return getFunctionName(ref) === "media:generateUploadUrl" ? "https://upload.example" : null;
   });
 });
@@ -93,7 +93,7 @@ it("accepts the author's photo, presents the same private preview and applies th
     publish(
       new Request(url, {
         method: "POST",
-        headers: { origin: url, "content-type": "application/json" },
+        headers: { origin: url, "content-type": "application/json", "X-Article-Revision": "123" },
         body: JSON.stringify({ version }),
       }),
       context,
@@ -101,14 +101,9 @@ it("accepts the author's photo, presents the same private preview and applies th
   expect((await approve("old-version")).status).toBe(409);
   expect((await approve(candidate.version)).status).toBe(200);
   const writes = mocks.mutate.mock.calls.filter(([ref]) => getFunctionName(ref) !== "recordAccess:read");
-  expect(writes.map(([ref]) => getFunctionName(ref))).toEqual([
-    "media:generateUploadUrl",
-    "media:finalizeUpload",
-    "articleAdmin:updateEditorial",
-  ]);
-  expect(writes[2][1].editorial).toMatchObject({
-    featuredImageId: "storage-id",
-    featuredImageAlt: candidate.alt,
+  expect(writes.map(([ref]) => getFunctionName(ref))).toEqual(["media:generateUploadUrl", "articleAdmin:approve"]);
+  expect(writes[1][1]).toMatchObject({
+    id, expectedUpdatedAt: 123, cover: { storageId: "storage-id", size: Buffer.from(candidate.image, "base64").length, alt: candidate.alt, proposalVersion: candidate.version },
   });
   expect(row).toBeNull();
 });

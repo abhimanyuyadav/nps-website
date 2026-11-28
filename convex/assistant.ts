@@ -1,5 +1,6 @@
 "use node";
 
+import { canonicalPublicHref } from "../lib/content/canonical-public-href";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { Agent } from "@convex-dev/agent";
 import { createHmac, timingSafeEqual } from "node:crypto";
@@ -116,41 +117,6 @@ function groundingSearchQuery(text: string): string {
     .filter((term) => term.length >= 2 || /^\d$/u.test(term))
     .map((term) => term.slice(0, 32));
   return [...new Set(terms)].slice(0, 16).join(" ");
-}
-
-const legacyPublicPaths: Record<string, string> = {
-  "/about/overview": "/about",
-  "/about/history": "/about#history",
-  "/about/mission-vision": "/about#mission",
-  "/academics/overview": "/academics",
-  "/academics/primary": "/academics#primary",
-  "/academics/secondary": "/academics#secondary",
-  "/academics/plus-2": "/academics#plus-2",
-  "/academics/curriculum": "/academics#curriculum",
-  "/academics/departments": "/departments",
-  "/academics/library": "/facilities#library",
-  "/academics/sports": "/campus-life/activities",
-  "/teachers": "/departments",
-  "/campus-life/facilities": "/facilities",
-  "/campus-life/virtual-tour": "/facilities",
-  "/campus-life/transport": "/facilities#transportation",
-};
-
-function canonicalPublicHref(href: string): string {
-  if (!href.startsWith("/") || href.startsWith("//")) return href;
-
-  const suffixIndex = [href.indexOf("?"), href.indexOf("#")]
-    .filter((index) => index >= 0)
-    .reduce((lowest, index) => Math.min(lowest, index), href.length);
-  const rawPathname = href.slice(0, suffixIndex);
-  const suffix = href.slice(suffixIndex);
-  const pathname = rawPathname.length > 1 ? rawPathname.replace(/\/$/, "") : rawPathname;
-  const legacyDepartment = pathname.match(/^\/academics\/departments\/([^/]+)$/);
-  if (legacyDepartment) return `/departments/${legacyDepartment[1]}`;
-
-  const replacement = legacyPublicPaths[pathname];
-  if (replacement) return replacement;
-  return `${pathname}${suffix}`;
 }
 
 function flattenSources(

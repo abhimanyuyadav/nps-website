@@ -17,7 +17,6 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { ArticleTextEditor } from "./article-text-editor";
 import { ArticleCoverField, useArticleCover } from "@/components/forms/article-cover-field";
-import { studentArticleCover } from "@/lib/content/student-article-covers";
 import { ADMIN_ACCESS_ROLES } from "@/lib/admin/authorization";
 import { AdminFeatureGate } from "./admin-gate";
 import {
@@ -309,7 +308,7 @@ function ArticleReviewDialog({
   const cover = useArticleCover("admin", article._id);
   const approve = useMutation(articleAdminApi.approve);
   const [editing, setEditing] = useState(false);
-  const [deleteVersion, setDeleteVersion] = useState(0);
+  const [reviewedVersion, setReviewedVersion] = useState(0);
   const remove = useMutation(articleAdminApi.remove);
   const reject = useMutation(articleAdminApi.reject);
   const archive = useMutation(articleAdminApi.archive);
@@ -321,7 +320,7 @@ function ArticleReviewDialog({
       return;
     }
     setError(null);
-    if (nextDecision === "delete") setDeleteVersion(article.updatedAt);
+    setReviewedVersion(article.updatedAt);
     setDecision(nextDecision);
   }
 
@@ -331,14 +330,17 @@ function ArticleReviewDialog({
     setError(null);
     try {
       if (decision === "approve") {
-        if (article.status === "submitted") await cover.save(article._id);
-        await approve({ id: article._id });
+        if (article.status === "submitted" && (cover.file || cover.pending)) {
+          await cover.save(article._id, reviewedVersion);
+        } else {
+          await approve({ id: article._id, expectedUpdatedAt: reviewedVersion });
+        }
         onPublished();
       }
-      if (decision === "delete") await remove({ id: article._id, expectedUpdatedAt: deleteVersion });
-      if (decision === "reject") await reject({ id: article._id, note: note.trim() });
+      if (decision === "delete") await remove({ id: article._id, expectedUpdatedAt: reviewedVersion });
+      if (decision === "reject") await reject({ id: article._id, expectedUpdatedAt: reviewedVersion, note: note.trim() });
       if (decision === "archive") {
-        await archive({ id: article._id, ...(note.trim() ? { note: note.trim() } : {}) });
+        await archive({ id: article._id, expectedUpdatedAt: reviewedVersion, ...(note.trim() ? { note: note.trim() } : {}) });
       }
       onFeedback({
         kind: "success",
@@ -441,11 +443,7 @@ function ArticleReviewDialog({
               <ArticleCoverField
                 cover={cover}
                 disabled={busy || (article.status !== "published" && article.status !== "submitted")}
-                current={studentArticleCover(
-                  article.slug,
-                  article.featuredImageUrl,
-                  article.featuredImageAlt,
-                )}
+                current={article.featuredImageUrl ? { url: article.featuredImageUrl, alt: article.featuredImageAlt } : undefined}
               />
               {article.status === "published" && cover.file && (
                 <button
@@ -456,7 +454,7 @@ function ArticleReviewDialog({
                     setBusy(true);
                     setError(null);
                     try {
-                      await cover.save(article._id);
+                      await cover.save(article._id, article.updatedAt);
                       onFeedback({ kind: "success", text: "Article cover updated." });
                       onClose();
                     } catch (e) {

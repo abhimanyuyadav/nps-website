@@ -1,56 +1,10 @@
+import { canonicalPublicHref } from "@/lib/content/canonical-public-href";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight, Search } from "lucide-react";
 import { PageHero } from "@/components/site/page-hero";
 import { firstSearchParam } from "@/lib/content/search-param";
-import {
-  getCmsPages,
-  getDepartments,
-  getEvents,
-  getFacilities,
-  getFaqs,
-  getNavigation,
-  getNews,
-  getNotices,
-  getPrograms,
-  getStudentArticles,
-  getTeachers,
-} from "@/lib/data/public";
-
-const legacyPublicPaths: Record<string, string> = {
-  "/about/overview": "/about",
-  "/about/history": "/about#history",
-  "/about/mission-vision": "/about#mission",
-  "/academics/overview": "/academics",
-  "/academics/primary": "/academics#primary",
-  "/academics/secondary": "/academics#secondary",
-  "/academics/plus-2": "/academics#plus-2",
-  "/academics/curriculum": "/academics#curriculum",
-  "/academics/departments": "/departments",
-  "/academics/library": "/facilities#library",
-  "/academics/sports": "/campus-life/activities",
-  "/teachers": "/departments",
-  "/campus-life/facilities": "/facilities",
-  "/campus-life/virtual-tour": "/facilities",
-  "/campus-life/transport": "/facilities#transportation",
-};
-
-function canonicalPublicHref(href: string): string {
-  if (!href.startsWith("/") || href.startsWith("//")) return href;
-
-  const suffixIndex = [href.indexOf("?"), href.indexOf("#")]
-    .filter((index) => index >= 0)
-    .reduce((lowest, index) => Math.min(lowest, index), href.length);
-  const rawPathname = href.slice(0, suffixIndex);
-  const suffix = href.slice(suffixIndex);
-  const pathname = rawPathname.length > 1 ? rawPathname.replace(/\/$/, "") : rawPathname;
-  const legacyDepartment = pathname.match(/^\/academics\/departments\/([^/]+)$/);
-  if (legacyDepartment) return `/departments/${legacyDepartment[1]}`;
-
-  const replacement = legacyPublicPaths[pathname];
-  if (replacement) return replacement;
-  return `${pathname}${suffix}`;
-}
+import { getSearchCatalogue } from "@/lib/data/public";
 
 export const metadata: Metadata = { title: "Search", robots: { index: false, follow: true } };
 export default async function SearchPage({
@@ -60,109 +14,12 @@ export default async function SearchPage({
 }) {
   const q = firstSearchParam((await searchParams).q);
   const query = q?.trim().toLowerCase() ?? "";
-  const [
-    news,
-    notices,
-    events,
-    articles,
-    teachers,
-    pages,
-    programs,
-    departments,
-    facilities,
-    faqs,
-    headerNavigation,
-    footerNavigation,
-    utilityNavigation,
-  ] = query
-    ? await Promise.all([
-        getNews(100),
-        getNotices(100),
-        getEvents("all", 100),
-        getStudentArticles(100),
-        getTeachers(),
-        getCmsPages(),
-        getPrograms(),
-        getDepartments(),
-        getFacilities(),
-        getFaqs(undefined, 120),
-        getNavigation("header"),
-        getNavigation("footer"),
-        getNavigation("utility"),
-      ])
-    : [[], [], [], [], [], [], [], [], [], [], [], [], []];
-  const navigationPages = [...headerNavigation, ...footerNavigation, ...utilityNavigation].filter(
-    (item) => !item.external && item.href.startsWith("/") && !item.href.startsWith("//"),
-  );
   const candidates = query
-    ? [
-        ...navigationPages.map((item) => ({
-          title: item.label,
-          description: item.description ?? item.label,
-          href: canonicalPublicHref(item.href),
-          type: "Page",
-        })),
-        ...pages.map((item) => ({
-          title: item.title,
-          description: item.summary ?? item.body.slice(0, 220),
-          href: canonicalPublicHref(`/${item.slug}`),
-          type: "Page",
-        })),
-        ...programs.map((item) => ({
-          title: item.name,
-          description: item.shortDescription,
-          href: `/academics#${item.slug}`,
-          type: "Programme",
-        })),
-        ...departments.map((item) => ({
-          title: item.name,
-          description: item.description,
-          href: `/departments/${item.slug}`,
-          type: "Department",
-        })),
-        ...facilities.map((item) => ({
-          title: item.name,
-          description: [item.summary, item.details].filter(Boolean).join(" "),
-          href: `/facilities#${item.slug}`,
-          type: "Facility",
-        })),
-        ...news.map((item) => ({
-          title: item.title,
-          description: item.summary,
-          href: `/news/${item.slug}`,
-          type: "News",
-        })),
-        ...notices.map((item) => ({
-          title: item.title,
-          description: item.summary,
-          href: `/notices/${item.slug}`,
-          type: "Notice",
-        })),
-        ...events.map((item) => ({
-          title: item.title,
-          description: item.summary,
-          href: `/events/${item.slug}`,
-          type: "Event",
-        })),
-        ...articles.map((item) => ({
-          title: item.title,
-          description: item.excerpt,
-          href: `/articles/${item.slug}`,
-          type: "Student article",
-        })),
-        ...teachers.map((item) => ({
-          title: item.name,
-          description: `${item.designation} · ${item.department}`,
-          href: `/teachers/${item.slug}`,
-          type: "Teacher",
-        })),
-        ...faqs.map((item) => ({
-          title: item.question,
-          description: item.answer,
-          href: `/admissions/faq?q=${encodeURIComponent(item.question)}`,
-          type: "FAQ",
-        })),
-      ].filter((item) => `${item.title} ${item.description} ${item.type}`.toLowerCase().includes(query))
+    ? (await getSearchCatalogue())
+        .filter((item) =>
+          (item.title + " " + item.description + " " + item.type).toLowerCase().includes(query),
+        )
+        .map((item) => ({ ...item, href: canonicalPublicHref(item.href) }))
     : [];
   const results = Array.from(new Map(candidates.map((item) => [item.href, item])).values());
   return (

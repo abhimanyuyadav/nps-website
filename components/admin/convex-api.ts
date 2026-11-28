@@ -312,13 +312,13 @@ export const articleAdminApi = {
   ),
   approve: makeFunctionReference<
     "mutation",
-    { id: string },
+    { id: string; expectedUpdatedAt: number },
     { ok: true; status: "published"; publishedAt: number }
   >("articleAdmin:approve"),
-  reject: makeFunctionReference<"mutation", { id: string; note: string }, { ok: true; status: "rejected" }>(
+  reject: makeFunctionReference<"mutation", { id: string; expectedUpdatedAt: number; note: string }, { ok: true; status: "rejected" }>(
     "articleAdmin:reject",
   ),
-  archive: makeFunctionReference<"mutation", { id: string; note?: string }, { ok: true; status: "archived" }>(
+  archive: makeFunctionReference<"mutation", { id: string; expectedUpdatedAt: number; note?: string }, { ok: true; status: "archived" }>(
     "articleAdmin:archive",
   ),
 };
