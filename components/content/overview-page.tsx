@@ -23,14 +23,14 @@ export function OverviewPage({
   eyebrow: string;
   title: string;
   description: string;
-  image?: string;
+  image?: string | null;
   introEyebrow: string;
   introTitle: string;
   intro: string;
   additionalCopy?: string[];
   cards: OverviewCard[];
   cardHeading: string;
-  featureImage?: string;
+  featureImage?: string | null;
   principles: { title: string; description: string }[];
   cta: {
     title: string;
@@ -51,7 +51,13 @@ export function OverviewPage({
         crumbs={[{ label: title }]}
       />
       <section className="px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
-        <div className="mx-auto grid max-w-7xl gap-12 lg:grid-cols-[.9fr_1.1fr] lg:items-center">
+        <div
+          className={
+            featureImage
+              ? "mx-auto grid max-w-7xl gap-12 lg:grid-cols-[.9fr_1.1fr] lg:items-center"
+              : "mx-auto max-w-7xl [&>div]:max-w-3xl"
+          }
+        >
           <div className="min-w-0">
             <p className="text-xs font-extrabold tracking-[.2em] text-[#2e3192] uppercase">{introEyebrow}</p>
             <h2 className="mt-4 text-3xl leading-tight font-extrabold tracking-[-.035em] text-[#1e1f5c] sm:text-4xl">
@@ -64,15 +70,17 @@ export function OverviewPage({
               </p>
             ))}
           </div>
-          <div className="relative min-h-80 overflow-hidden rounded-3xl bg-slate-100 sm:min-h-[430px]">
-            <Image
-              src={featureImage}
-              alt="Nepal Police School"
-              fill
-              className="object-cover"
-              sizes="(max-width: 1024px) 100vw, 52vw"
-            />
-          </div>
+          {featureImage && (
+            <div className="relative min-h-80 overflow-hidden rounded-3xl bg-slate-100 sm:min-h-[430px]">
+              <Image
+                src={featureImage}
+                alt="Nepal Police School"
+                fill
+                className="object-cover"
+                sizes="(max-width: 1024px) 100vw, 52vw"
+              />
+            </div>
+          )}
         </div>
       </section>
       <section className="bg-[#eef0fb] px-4 py-16 sm:px-6 sm:py-20 lg:px-8">

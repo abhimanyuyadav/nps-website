@@ -1,23 +1,27 @@
 import { OverviewPage } from "@/components/content/overview-page";
 import { contentMetadata } from "@/lib/content/public-metadata";
 
+import { getCmsPage } from "@/lib/data/public";
+
 export const metadata = contentMetadata({
   title: "School life",
   description:
     "Explore facilities, activities, events, and approved school photographs from Nepal Police School, Garuda.",
   path: "/campus-life",
 });
-export default function SchoolLifePage() {
+export default async function SchoolLifePage() {
+  const page = await getCmsPage("campus-life");
+  const photo = page?.heroImageUrl || null;
   return (
     <OverviewPage
       eyebrow="School life"
       title="A fuller school experience"
       description="Learning spaces, student activities, shared responsibilities, and practical services all contribute to the school day."
-      image="/media/sports-day.png"
+      image={photo}
       introEyebrow="Beyond lessons"
       introTitle="A school where learning, participation, and wellbeing meet."
       intro="School life information helps families understand facilities, activities, events, and visitor arrangements. Confirmed schedules and participation details are published through notices and direct school communication."
-      featureImage="/media/sports-day.png"
+      featureImage={photo}
       cardHeading="Explore life at NPS Garuda"
       cards={[
         {

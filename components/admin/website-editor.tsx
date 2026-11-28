@@ -168,8 +168,8 @@ export const websiteEditorSections: readonly WebsiteEditorSection[] = [
         roles: contentRoles,
       },
       {
-        label: "Edit activities",
-        description: "Edit the published student activities page when schedules and opportunities change.",
+        label: "School life photo and activities",
+        description: "Upload a school photo for the School life page or edit student activities.",
         href: "/admin/pages?section=campus-life",
         icon: FileText,
         roles: contentRoles,

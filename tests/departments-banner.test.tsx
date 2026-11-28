@@ -2,11 +2,14 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
 import { DepartmentsBanner } from "@/components/admin/departments-banner";
+import SchoolLifePage from "@/app/(site)/campus-life/page";
 import DepartmentsPage from "@/app/(site)/departments/page";
 
 const m = vi.hoisted(() => ({ save: vi.fn(), upload: vi.fn(), pages: vi.fn(), getCmsPage: vi.fn() }));
 vi.mock("convex/server", () => ({ makeFunctionReference: (name: string) => name }));
-vi.mock("@/components/admin/use-record-access", () => ({ useRecordPages: () => ({ results: m.pages(), status: "Exhausted" }) }));
+vi.mock("@/components/admin/use-record-access", () => ({
+  useRecordPages: () => ({ results: m.pages(), status: "Exhausted" }),
+}));
 vi.mock("convex/react", () => ({
   useMutation: () => m.save,
   useQuery: () => undefined,
@@ -84,4 +87,34 @@ it.each([
   const { container } = render(await DepartmentsPage());
   expect(m.getCmsPage).toHaveBeenCalledWith("departments");
   expect(decodeURIComponent(container.querySelector("img")!.getAttribute("src")!)).toContain(expected);
+});
+
+it("shows only the school-selected photo in both School life locations", async () => {
+  m.getCmsPage.mockResolvedValue(null);
+  const view = render(await SchoolLifePage());
+  expect(m.getCmsPage).toHaveBeenCalledWith("campus-life");
+  expect(view.container.querySelectorAll("img")).toHaveLength(0);
+  m.getCmsPage.mockResolvedValue({ heroImageUrl: "/approved.jpg" });
+  view.rerender(await SchoolLifePage());
+  const photos = Array.from(view.container.querySelectorAll("img"));
+  expect(photos).toHaveLength(2);
+  for (const photo of photos) expect(decodeURIComponent(photo.src)).toContain("/approved.jpg");
+});
+
+it("publishes an uploaded photo to the School life page", async () => {
+  m.upload.mockResolvedValue("verified-photo");
+  render(<DepartmentsBanner section="campus-life" />);
+  const file = new File(["photo"], "school.jpg", { type: "image/jpeg" });
+  fireEvent.change(screen.getByLabelText("Upload a photo"), { target: { files: [file] } });
+  await screen.findByText(/Photo uploaded/);
+  expect(m.upload).toHaveBeenCalledWith(file, "", "campus-life");
+  fireEvent.click(screen.getByRole("button", { name: "Publish photo" }));
+  await waitFor(() =>
+    expect(m.save).toHaveBeenCalledWith({
+      payload: {
+        type: "pages",
+        data: expect.objectContaining({ slug: "campus-life", heroImageId: "verified-photo" }),
+      },
+    }),
+  );
 });

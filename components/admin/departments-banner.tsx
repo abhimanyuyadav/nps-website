@@ -2,7 +2,7 @@
 import { useRecordPages } from "./use-record-access";
 
 import Link from "next/link";
-import { useMutation, usePaginatedQuery } from "convex/react";
+import { useMutation } from "convex/react";
 import { useEffect, useState } from "react";
 import { departmentsDefaultImage } from "@/lib/content/departments-banner";
 import { AdminFeatureGate } from "./admin-gate";
@@ -13,21 +13,24 @@ import { useMediaUpload } from "./use-media-upload";
 
 const imageTypes = ["image/jpeg", "image/png", "image/webp", "image/avif", "image/gif"];
 
-export function DepartmentsBanner() {
+export function DepartmentsBanner({ section = "departments" }: { section?: "departments" | "campus-life" }) {
   return (
     <AdminFeatureGate requiredRoles={["admin", "publisher"]}>
-      <BannerEditor />
+      <BannerEditor section={section} />
     </AdminFeatureGate>
   );
 }
 
-function BannerEditor() {
+function BannerEditor({ section }: { section: "departments" | "campus-life" }) {
+  const schoolLife = section === "campus-life";
+  const pageName = schoolLife ? "School life" : "Departments";
+  const defaultPhoto = schoolLife ? "" : departmentsDefaultImage;
   const { results, status, loadMore } = useRecordPages(
     adminApi.listContent,
     { type: "pages" },
     { initialNumItems: 50 },
   );
-  const page = results.find((item) => item.slug === "departments");
+  const page = results.find((item) => item.slug === section);
   useEffect(() => {
     if (!page && status === "CanLoadMore") loadMore(50);
   }, [page, status, loadMore]);
@@ -40,9 +43,7 @@ function BannerEditor() {
   const currentId = String(page?.heroImageId ?? "");
   const value = selection ?? currentId;
   const fallbackUrl =
-    selection === null && typeof page?.heroImageUrl === "string"
-      ? page.heroImageUrl
-      : departmentsDefaultImage;
+    selection === null && typeof page?.heroImageUrl === "string" ? page.heroImageUrl : defaultPhoto;
 
   async function selectFile(file: File) {
     setMessage(null);
@@ -52,7 +53,7 @@ function BannerEditor() {
     }
     setBusy(true);
     try {
-      setSelection(await upload(file, "", "departments"));
+      setSelection(await upload(file, "", section));
       setMessage({
         kind: "success",
         text: "Photo uploaded. Check the preview, then select Publish photo to show it on the website.",
@@ -73,9 +74,13 @@ function BannerEditor() {
     setMessage(null);
     try {
       const data: Record<string, unknown> = {
-        slug: "departments",
-        title: page?.title ?? "Academic departments",
-        body: page?.body ?? "Explore the school's academic departments and their teachers.",
+        slug: section,
+        title: page?.title ?? (schoolLife ? "School life" : "Academic departments"),
+        body:
+          page?.body ??
+          (schoolLife
+            ? "Explore school life at NPS Garuda."
+            : "Explore the school's academic departments and their teachers."),
         status: "published",
       };
       for (const key of ["summary", "template", "seo", "featured", "order", "publishAt", "expireAt"]) {
@@ -86,7 +91,7 @@ function BannerEditor() {
       setSelection(null);
       setMessage({
         kind: "success",
-        text: "Photo published. It may take a minute to appear on the Departments page.",
+        text: `Photo settings saved. It may take a minute to appear on the ${pageName} page.`,
       });
     } catch (error) {
       setMessage({
@@ -100,15 +105,21 @@ function BannerEditor() {
 
   return (
     <section className="mb-6 space-y-4 rounded-2xl border border-slate-200 bg-white p-5">
-      <h2 className="text-lg font-black">Photo at the top of the Departments page</h2>
+      <h2 className="text-lg font-black">
+        {schoolLife ? "School life photo" : "Photo at the top of the Departments page"}
+      </h2>
       <p className="text-sm text-slate-600">
         Upload a school-approved photo or choose one you already uploaded for the{" "}
-        <Link className="font-bold text-sky-800 underline" href="/departments">
-          Departments page
+        <Link className="font-bold text-sky-800 underline" href={`/${section}`}>
+          {pageName} page
         </Link>
-        .
+        .{" "}
+        {schoolLife &&
+          "The same photo appears at the top and beside Beyond lessons. Leave it empty to show text only."}
       </p>
-      {page || status === "Exhausted" ? (
+      {schoolLife && page && page.status !== "published" ? (
+        <p>Publish the School life page in the page editor before changing its public photo.</p>
+      ) : page || status === "Exhausted" ? (
         <fieldset disabled={busy} className="min-w-0 space-y-4">
           <label className="block text-sm font-bold">
             Upload a photo
@@ -133,7 +144,7 @@ function BannerEditor() {
             }}
             value={value}
             fallbackUrl={fallbackUrl}
-            fallbackAlt="Preview of the Departments photo"
+            fallbackAlt={`Preview of the ${pageName} photo`}
             onSelect={(asset) => {
               setSelection(String(asset?.storageId ?? ""));
               setMessage(null);
@@ -143,7 +154,7 @@ function BannerEditor() {
             <button className={primaryButtonClass} disabled={selection === null || busy} onClick={publish}>
               Publish photo
             </button>
-            {(value || fallbackUrl !== departmentsDefaultImage) && (
+            {(value || fallbackUrl !== defaultPhoto) && (
               <button
                 className="text-sm font-bold text-sky-800"
                 type="button"
@@ -152,7 +163,7 @@ function BannerEditor() {
                   setMessage(null);
                 }}
               >
-                Use the default photo
+                {schoolLife ? "Remove photo" : "Use the default photo"}
               </button>
             )}
           </div>
