@@ -1,3 +1,4 @@
+import { readBoundedJson } from "@/lib/server/request-body";
 import { auth } from "@clerk/nextjs/server";
 import { ConvexHttpClient } from "convex/browser";
 import { revalidateTag } from "next/cache";
@@ -30,7 +31,9 @@ export async function POST(request: Request, { params }: Context) {
   const { client, article } = access;
   const proposed = await pendingCover(id, "read");
   const usingProposal = request.headers.get("content-type")?.includes("application/json");
-  if (usingProposal && (!proposed || (await request.json()).version !== proposed.version))
+  const selection = usingProposal ? await readBoundedJson(request, 2048) : null;
+  if (usingProposal && (!proposed || !selection || typeof selection !== "object" ||
+      !("version" in selection) || selection.version !== proposed.version))
     return coverJson({ error: "The proposed cover changed. Reload to review it." }, 409);
   const cover = usingProposal ? proposed : await readCoverUpload(request);
   if (!cover)

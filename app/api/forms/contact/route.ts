@@ -1,3 +1,4 @@
+import { readBoundedJson } from "@/lib/server/request-body";
 import { fetchAction } from "convex/nextjs";
 import { makeFunctionReference } from "convex/server";
 import { NextRequest } from "next/server";
@@ -55,7 +56,7 @@ export async function POST(request: NextRequest) {
       { status: 503 },
     );
 
-  const parsed = schema.safeParse(await request.json().catch(() => null));
+  const parsed = schema.safeParse(await readBoundedJson(request));
   if (!parsed.success)
     return formJson(session, { error: "Please check the form and try again." }, { status: 400 });
   const honeypot = parsed.data.website || parsed.data.honeypot;

@@ -1,3 +1,4 @@
+import { readBoundedJson } from "@/lib/server/request-body";
 import { createHmac, randomUUID } from "node:crypto";
 import { fetchAction } from "convex/nextjs";
 import { makeFunctionReference } from "convex/server";
@@ -63,7 +64,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const payload = await request.json().catch(() => null);
+  const payload = await readBoundedJson(request);
   const parsed = messageSchema.safeParse(payload);
   if (!parsed.success) {
     return NextResponse.json(

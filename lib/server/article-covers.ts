@@ -2,6 +2,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { fetchAction } from "convex/nextjs";
 import sharp from "sharp";
+import { readBoundedBody } from "./request-body";
 import { api } from "@/convex/_generated/api";
 import { getPublicFormConfiguration } from "./form-configuration";
 import { signPublicFormPayload } from "./public-forms";
@@ -31,9 +32,12 @@ export async function pendingCover(articleId: string, op: "read" | "write" | "cl
   );
 }
 export async function readCoverUpload(request: Request): Promise<DraftCover | null> {
-  if (Number(request.headers.get("content-length")) > 4_200_000) return null;
   try {
-    const form = await request.formData();
+    const body = await readBoundedBody(request, 4_200_000);
+    if (!body) return null;
+    const form = await new Response(body, {
+      headers: { "Content-Type": request.headers.get("content-type") ?? "" },
+    }).formData();
     const file = form.get("image"),
       alt = form.get("alt");
     if (

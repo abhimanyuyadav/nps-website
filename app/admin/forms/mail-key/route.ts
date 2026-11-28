@@ -1,3 +1,4 @@
+import { readBoundedJson } from "@/lib/server/request-body";
 import { randomBytes, createCipheriv } from "node:crypto";
 import { auth } from "@clerk/nextjs/server";
 import { ConvexHttpClient } from "convex/browser";
@@ -15,7 +16,8 @@ export async function POST(request: Request) {
   const staff = await client.query(api.users.current, {});
   if (staff?.status !== "active" || !staff.roles.includes("admin"))
     return new Response(null, { status: 403 });
-  const value = (await request.json().catch(() => null))?.key;
+  const settings = await readBoundedJson(request, 2048);
+  const value = settings && typeof settings === "object" && "key" in settings ? settings.key : null;
   if (typeof value !== "string" || !/^re_[A-Za-z0-9_-]{10,180}$/.test(value))
     return new Response(null, { status: 400 });
   const iv = randomBytes(12),

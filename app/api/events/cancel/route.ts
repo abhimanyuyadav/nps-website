@@ -1,3 +1,4 @@
+import { readBoundedJson } from "@/lib/server/request-body";
 import { fetchMutation } from "convex/nextjs";
 import { makeFunctionReference } from "convex/server";
 import { NextResponse } from "next/server";
@@ -12,7 +13,7 @@ export async function POST(request: Request) {
   const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
   if (!convexUrl)
     return NextResponse.json({ error: "Event registration is not configured." }, { status: 503 });
-  const parsed = schema.safeParse(await request.json().catch(() => null));
+  const parsed = schema.safeParse(await readBoundedJson(request));
   if (!parsed.success)
     return NextResponse.json({ error: "This cancellation link is invalid." }, { status: 400 });
   try {

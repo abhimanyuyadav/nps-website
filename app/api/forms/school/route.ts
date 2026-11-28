@@ -1,3 +1,4 @@
+import { readBoundedJson } from "@/lib/server/request-body";
 import { NextRequest } from "next/server";
 import { fetchAction } from "convex/nextjs";
 import { z } from "zod";
@@ -23,7 +24,7 @@ export async function POST(request: NextRequest) {
   const session = preparePublicFormRequest(request);
   if (!session)
     return formJson(null, { error: "School forms are temporarily unavailable." }, { status: 503 });
-  const parsed = schema.safeParse(await request.json().catch(() => null));
+  const parsed = schema.safeParse(await readBoundedJson(request, 512 * 1024));
   if (!parsed.success)
     return formJson(
       session,

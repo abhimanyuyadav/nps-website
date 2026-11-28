@@ -1,3 +1,4 @@
+import { readBoundedJson } from "@/lib/server/request-body";
 import { fetchAction } from "convex/nextjs";
 import { makeFunctionReference } from "convex/server";
 import { NextRequest } from "next/server";
@@ -42,7 +43,7 @@ export async function POST(request: NextRequest) {
   const session = preparePublicFormRequest(request);
   if (!session)
     return formJson(session, { error: "Email sign-up is unavailable right now." }, { status: 503 });
-  const parsed = schema.safeParse(await request.json().catch(() => null));
+  const parsed = schema.safeParse(await readBoundedJson(request));
   if (!parsed.success)
     return formJson(
       session,

@@ -1,3 +1,4 @@
+import { readBoundedJson } from "@/lib/server/request-body";
 import { createHmac, randomUUID } from "node:crypto";
 import { auth } from "@clerk/nextjs/server";
 import { ConvexHttpClient } from "convex/browser";
@@ -63,36 +64,13 @@ function reply(value: unknown, code = 200) {
     headers: { "Cache-Control": "private, no-store", Vary: "Cookie" },
   });
 }
-async function boundedJson(request: Request) {
-  const reader = request.body?.getReader();
-  if (!reader) return null;
-  let size = 0;
-  let text = "";
-  const decoder = new TextDecoder();
-  try {
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) return JSON.parse(text + decoder.decode());
-      size += value.byteLength;
-      if (size > 24576) {
-        await reader.cancel();
-        return null;
-      }
-      text += decoder.decode(value, { stream: true });
-    }
-  } catch {
-    return null;
-  } finally {
-    reader.releaseLock();
-  }
-}
 export async function POST(request: Request) {
   if (request.headers.get("origin") !== new URL(request.url).origin) return reply(null, 403);
   if (request.headers.get("content-type")?.split(";")[0].trim() !== "application/json")
     return reply(null, 415);
   const { userId, getToken, sessionClaims } = await auth();
   if (!userId) return reply(null, 401);
-  const parsed = selection.safeParse(await boundedJson(request));
+  const parsed = selection.safeParse(await readBoundedJson(request, 24576));
   if (!parsed.success) return reply(null, 400);
   const spec = parsed.data;
   const kind: ArchiveRecordType =
