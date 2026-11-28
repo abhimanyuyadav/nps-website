@@ -2,6 +2,7 @@ import { ConvexError, v } from "convex/values";
 import { internalAction, internalMutation, internalQuery } from "./_generated/server";
 import { components, internal } from "./_generated/api";
 import { writeAudit } from "./lib/audit";
+import { schoolRetentionDays } from "./lib/schoolRetention";
 import { enqueueJob } from "./lib/jobs";
 import { shortHash } from "./lib/input";
 import { recordDeleted, recordStatusChanged } from "./lib/metrics";
@@ -1229,13 +1230,10 @@ export const cleanupRetention = internalMutation({
     }
 
     if (phase === "schoolResponses") {
-      const setting = process.env.SCHOOL_RESPONSE_RETENTION_DAYS?.trim() ?? "";
-      const days = Number(setting);
-      if (!/^[1-9]\d*$/.test(setting) || !Number.isSafeInteger(days)) return await finishBatch(false);
-      const cutoff = now - days * 86_400_000;
+      if (!schoolRetentionDays()) return await finishBatch(false);
       const rows = await ctx.db
         .query("schoolResponses")
-        .withIndex("by_creation_time", (q) => q.lt("_creationTime", cutoff))
+        .withIndex("by_hold_expiry", (q) => q.eq("retentionHold", undefined).gt("expiresAt", 0).lte("expiresAt", now))
         .order("asc")
         .take(SCHOOL_RESPONSE_RETENTION_BATCH_SIZE);
       for (const row of rows) await remove("schoolResponses", row._id);
@@ -1244,7 +1242,7 @@ export const cleanupRetention = internalMutation({
           action: "retention.sensitive_records_deleted",
           entityType: "retention",
           summary: `Retention cleanup deleted ${rows.length} school form responses.`,
-          metadata: { schoolResponses: String(rows.length), retentionDays: setting },
+          metadata: { schoolResponses: String(rows.length) },
         });
       }
       return await finishBatch(rows.length === SCHOOL_RESPONSE_RETENTION_BATCH_SIZE);

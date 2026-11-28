@@ -45,6 +45,7 @@ describe("school office forms", () => {
     const ref = await t.mutation(internal.schoolForms.record, input);
     expect(await t.mutation(internal.schoolForms.record, input)).toBe(ref);
     const saved = await t.run((ctx) => ctx.db.query("schoolResponses").unique());
+    expect(saved?.expiresAt).toBeUndefined();
     expect(saved?.consent).toMatchObject({ version: "share-answers-v1", formRevision: 2, at: expect.any(Number) });
     await t.run(async ctx => {
       const quota = await ctx.db.query("rateLimits").withIndex("by_key_scope", q => q.eq("key", "a".repeat(64)).eq("scope", "forms:network")).unique();
@@ -70,4 +71,32 @@ describe("school office forms", () => {
       vi.unstubAllEnvs();
     }
   });
+});
+
+it("schedules only explicitly approved revisions and restricts preservation holds to admins", async () => {
+  const t = convexTest(schema, modules);
+  const admin = t.withIdentity({ subject: "head" });
+  const id = await t.run(async ctx => {
+    await ctx.db.insert("users", { clerkUserId: "head", name: "Head", email: "head@example.test",
+      roles: ["admin"], status: "active", createdAt: 1, updatedAt: 1 });
+    return ctx.db.insert("schoolForms", { title: "Routine", description: "", fields: [], status: "open", revision: 2, updatedAt: 1 });
+  });
+  const input = { id, revision: 2, fingerprint: "fixture", email: "fixture@example.test", answers: [] };
+  try {
+    vi.stubEnv("SCHOOL_RESPONSE_RETENTION_DAYS", "365");
+    vi.stubEnv("SCHOOL_ROUTINE_FORM_REVISIONS", id + "@1");
+    await t.mutation(internal.schoolForms.record, { ...input, submissionId: "previous-policy" });
+    vi.stubEnv("SCHOOL_ROUTINE_FORM_REVISIONS", id + "@2");
+    await t.mutation(internal.schoolForms.record, { ...input, submissionId: "approved-policy" });
+    const [old, eligible] = await t.run(ctx => ctx.db.query("schoolResponses").take(2));
+    expect(old.expiresAt).toBeUndefined();
+    expect(Math.abs(eligible.expiresAt! - eligible._creationTime - 365 * 86_400_000)).toBeLessThan(5000);
+    await expect(t.mutation(api.schoolForms.setRetentionHold, { id: eligible._id, hold: true })).rejects.toThrow();
+    await admin.mutation(api.schoolForms.setRetentionHold, { id: eligible._id, hold: true });
+    expect((await t.run(ctx => ctx.db.get("schoolResponses", eligible._id)))?.retentionHold).toBe(true);
+    await admin.mutation(api.schoolForms.setRetentionHold, { id: eligible._id, hold: false });
+    expect((await t.run(ctx => ctx.db.get("schoolResponses", eligible._id)))?.retentionHold).toBeUndefined();
+    const audit = await t.run(ctx => ctx.db.query("auditLogs").take(10));
+    expect(audit.map(row => row.action)).toEqual(["retention.hold_set", "retention.hold_released"]);
+  } finally { vi.unstubAllEnvs(); }
 });

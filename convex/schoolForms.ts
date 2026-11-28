@@ -6,6 +6,8 @@ import { requireRole } from "./lib/auth";
 import { enforceRateLimit, protectSharedNetwork } from "./lib/rateLimit";
 import { normalizedEmail, referenceNumber, shortHash } from "./lib/input";
 import { enqueueJob } from "./lib/jobs";
+import { schoolResponseExpiry } from "./lib/schoolRetention";
+import { writeAudit } from "./lib/audit";
 
 function invalid(message: string): never {
   throw new ConvexError({ code: "FORM_INVALID", message });
@@ -160,6 +162,7 @@ export const record = internalMutation({
     const reference = referenceNumber("NPS-F", Date.now(), args.submissionId);
     const id = await ctx.db.insert("schoolResponses", {
       formId: form._id,
+      expiresAt: schoolResponseExpiry(form._id, form.revision, Date.now()),
       ...(args.consentVersion ? { consent: { at: Date.now(), version: args.consentVersion, formRevision: form.revision } } : {}),
       email,
       answers,
@@ -177,6 +180,19 @@ export const record = internalMutation({
         },
       });
     return reference;
+  },
+});
+
+export const setRetentionHold = mutation({
+  args: { id: v.id("schoolResponses"), hold: v.boolean() },
+  handler: async (ctx, { id, hold }) => {
+    const actor = await requireRole(ctx, ["admin"]);
+    const response = await ctx.db.get("schoolResponses", id);
+    if (!response) invalid("Response unavailable.");
+    if (Boolean(response.retentionHold) === hold) return;
+    await ctx.db.patch("schoolResponses", id, { retentionHold: hold || undefined });
+    await writeAudit(ctx, actor, { action: hold ? "retention.hold_set" : "retention.hold_released",
+      entityType: "schoolResponses", entityId: id, summary: hold ? "Placed a preservation hold." : "Released a preservation hold." });
   },
 });
 

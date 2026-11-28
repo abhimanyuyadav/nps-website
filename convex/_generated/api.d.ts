@@ -38,6 +38,7 @@ import type * as lib_pendingArticleCover from "../lib/pendingArticleCover.js";
 import type * as lib_rateLimit from "../lib/rateLimit.js";
 import type * as lib_schoolContent from "../lib/schoolContent.js";
 import type * as lib_schoolFormFields from "../lib/schoolFormFields.js";
+import type * as lib_schoolRetention from "../lib/schoolRetention.js";
 import type * as lib_secrets from "../lib/secrets.js";
 import type * as lib_studentAuth from "../lib/studentAuth.js";
 import type * as lib_validators from "../lib/validators.js";
@@ -86,6 +87,7 @@ declare const fullApi: ApiFromModules<{
   "lib/rateLimit": typeof lib_rateLimit;
   "lib/schoolContent": typeof lib_schoolContent;
   "lib/schoolFormFields": typeof lib_schoolFormFields;
+  "lib/schoolRetention": typeof lib_schoolRetention;
   "lib/secrets": typeof lib_secrets;
   "lib/studentAuth": typeof lib_studentAuth;
   "lib/validators": typeof lib_validators;

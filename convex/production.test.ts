@@ -547,7 +547,7 @@ describe("retention invariants", () => {
           updatedAt: start,
         }),
       );
-      const insertResponse = (submissionId: string) =>
+      const insertResponse = (submissionId: string, expiresAt?: number, retentionHold?: boolean) =>
         t.run((ctx) =>
           ctx.db.insert("schoolResponses", {
             formId,
@@ -555,15 +555,19 @@ describe("retention invariants", () => {
             answers: ["Synthetic answer"],
             submissionId,
             reference: submissionId,
+            expiresAt,
+            retentionHold,
           }),
         );
       const cleanup = () => t.mutation(internal.jobs.cleanupRetention, { phase: "schoolResponses" });
       for (let index = 0; index < 11; index++) {
         vi.setSystemTime(start + index * 1000);
-        await insertResponse(String(index));
+        await insertResponse(String(index), start + 30 * day);
       }
       vi.setSystemTime(start + 31 * day);
-      await insertResponse("recent");
+      await insertResponse("recent", start + 61 * day);
+      await insertResponse("legacy");
+      await insertResponse("held", start + 30 * day, true);
       for (const setting of [undefined, "0", "-3", "3.5", "invalid"]) {
         vi.stubEnv("SCHOOL_RESPONSE_RETENTION_DAYS", setting);
         expect(await cleanup()).toEqual({ deleted: 0 });
@@ -574,9 +578,9 @@ describe("retention invariants", () => {
         const rows = await ctx.db.query("schoolResponses").take(20);
         return rows.map((row) => row.submissionId);
       });
-      expect(await remaining()).toEqual(["10", "recent"]);
+      expect((await remaining()).sort()).toEqual(["10", "held", "legacy", "recent"]);
       await t.finishAllScheduledFunctions(vi.runAllTimers);
-      expect(await remaining()).toEqual(["recent"]);
+      expect((await remaining()).sort()).toEqual(["held", "legacy", "recent"]);
       const audit = await t.run((ctx) => ctx.db.query("auditLogs").take(5));
       expect(audit.map((entry) => entry.metadata?.schoolResponses)).toEqual(["10", "1"]);
     } finally {

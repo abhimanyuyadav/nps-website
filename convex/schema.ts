@@ -125,6 +125,8 @@ export default defineSchema({
     updatedAt: v.number(),
   }).index("by_status_updated", ["status", "updatedAt"]),
   schoolResponses: defineTable({
+    expiresAt: v.optional(v.number()),
+    retentionHold: v.optional(v.boolean()),
     consent: v.optional(v.object({ at: v.number(), version: v.string(), formRevision: v.number() })),
     formId: v.id("schoolForms"),
     email: v.string(),
@@ -133,7 +135,8 @@ export default defineSchema({
     submissionId: v.string(),
   })
     .index("by_form", ["formId"])
-    .index("by_form_submission", ["formId", "submissionId"]),
+    .index("by_form_submission", ["formId", "submissionId"])
+    .index("by_hold_expiry", ["retentionHold", "expiresAt"]),
   articleCoverDrafts: defineTable({
     articleId: v.string(),
     version: v.string(),
