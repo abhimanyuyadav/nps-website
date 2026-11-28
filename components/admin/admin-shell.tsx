@@ -342,7 +342,7 @@ export const adminNavigation: NavigationGroup[] = [
         searchTerms: "permissions staff administrators",
       },
       {
-        label: "Audit log",
+        label: "Activity history",
         href: "/admin/audit",
         icon: ScrollText,
         roles: [...ADMIN_ACCESS_ROLES.adminOnly],

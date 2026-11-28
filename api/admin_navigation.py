@@ -35,7 +35,7 @@ ALIASES = {
     "ai": "ai assistant|ai settings|ai|एआई सहायक|एआई",
     "jobs": "background jobs|failed job|failed jobs|jobs|पृष्ठभूमिका कामहरू|असफल काम",
     "users": "users roles|users and roles|user roles|users|staff access|प्रयोगकर्ता|कर्मचारी अनुमति",
-    "audit": "audit log|audit|activity log|अडिट लग|गतिविधि विवरण",
+    "audit": "activity history|audit log|audit|activity log|अडिट लग|गतिविधि विवरण",
     "settings": "site settings|settings|सेटिङ|सेटिङहरू",
     "bootstrap": "initial setup|first admin setup|bootstrap|प्रारम्भिक सेटअप",
 }

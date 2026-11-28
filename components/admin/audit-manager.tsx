@@ -37,7 +37,7 @@ function AuditData() {
     },
     { initialNumItems: 50 },
   );
-  if (paginationStatus === "LoadingFirstPage") return <LoadingPanel label="Loading audit history" />;
+  if (paginationStatus === "LoadingFirstPage") return <LoadingPanel label="Loading activity history" />;
   return (
     <section>
       <div className="mb-5 rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-950">

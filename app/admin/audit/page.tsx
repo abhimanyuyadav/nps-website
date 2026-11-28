@@ -5,7 +5,7 @@ export default function AuditPage() {
     <>
       <PageHeading
         eyebrow="Security and compliance"
-        title="Audit log"
+        title="Activity history"
         description="See who made changes in the admin panel and when. Entries cannot be edited here."
       />
       <AuditManager />

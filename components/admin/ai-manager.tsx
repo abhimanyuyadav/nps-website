@@ -75,7 +75,7 @@ function AiData() {
       }
       setFeedback({
         kind: "success",
-        text: `AI assistant ${result.enabled ? "enabled" : "disabled"}. The change was recorded in the audit log.`,
+        text: `AI assistant ${result.enabled ? "enabled" : "disabled"}. You can see this change in Activity history.`,
       });
     } catch {
       setFeedback({
